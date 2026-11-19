@@ -173,6 +173,8 @@ docker volume create company-report-neo4j-data
 docker volume create company-report-neo4j-logs
 
 docker run -d --name company-report-neo4j \
+  --restart unless-stopped \
+  --tmpfs /var/lib/neo4j/run \
   -p 7474:7474 -p 7687:7687 \
   -e NEO4J_AUTH=neo4j/companyreport \
   -v company-report-neo4j-data:/data \
@@ -182,7 +184,8 @@ docker run -d --name company-report-neo4j \
 
 `-v`로 이름 있는 볼륨을 지정해야 `docker rm`으로 컨테이너를 지웠다가 같은 명령으로
 다시 만들어도 색인된 데이터가 그대로 유지됩니다(볼륨을 안 붙이면 컨테이너 삭제 시
-데이터도 함께 사라집니다).
+데이터도 함께 사라집니다). `--tmpfs /var/lib/neo4j/run`이 없으면 컨테이너를 멈췄다
+다시 켤 때 "Neo4j is already running (pid:7)"가 나며 기동에 실패합니다.
 
 **환경변수(`.env`)**: 설정은 [app/config.py](app/config.py)에 기본값이 있고, 프로젝트
 루트의 `.env` 파일이나 환경변수로 덮어씁니다. `.env`는 `.gitignore`에 포함되어 있어
@@ -278,6 +281,9 @@ python -m app.ingest status
 scripts/launchd/install.sh
 ```
 
+첫 전체 backfill을 끝낸 뒤에 UI의 "최신 공시 가져오기"를 누르거나 launchd를 설치하세요.
+옵션 없는 `backfill`만 마지막 성공일을 기록해, 이후 갱신이 2년치를 다시 훑지 않습니다.
+
 `backfill`은 `--since YYYY-MM-DD`, `--corp CODE [CODE ...]`(공백으로 여러 개), `--types A,B,...`로
 범위를 좁힐 수 있습니다. 등록을 풀려면 `scripts/launchd/uninstall.sh`, 설치될 plist만
 미리 보려면 `scripts/launchd/install.sh --dry-run`.
@@ -285,17 +291,24 @@ scripts/launchd/install.sh
 **자동 실행 전제 조건**: Mac이 잠자고 있었으면 깨어난 뒤 실행되고, 꺼져 있었으면
 다음 주 실행 때 조회 기간이 넓어져 메워집니다. 다만 수집이 돌려면 아래가 떠 있어야
 하므로 Docker Desktop과 Ollama를 로그인할 때 자동 실행되도록 설정하고, Neo4j
-컨테이너도 Docker와 함께 켜지게 합니다.
+컨테이너도 Docker와 함께 켜지게 합니다. 위 `docker run`에 `--restart unless-stopped`와
+`--tmpfs /var/lib/neo4j/run`이 들어 있어야 하는데, 예전 명령으로 만든 컨테이너라면
+다시 만듭니다. `docker update`로는 tmpfs 마운트를 추가할 수 없습니다. 이름 있는
+볼륨에 데이터가 있어 지워도 색인은 유지됩니다.
 
 ```bash
-docker update --restart unless-stopped company-report-neo4j
+docker stop company-report-neo4j && docker rm company-report-neo4j
+# 위 Neo4j `docker run` 명령을 다시 실행
 ```
+
+기존 컨테이너로는 멈췄다 켠 뒤 "Neo4j is already running (pid:7)"가 나면서 기동에
+실패할 수 있습니다.
 
 **로그와 상태**
 
 - 실행 로그: `logs/ingest/YYYY-MM-DD.log` (30일 보관), launchd 출력은 `logs/ingest/launchd.log`
 - 상태 파일: `data/ingest-state.json`, 실행 잠금: `data/ingest.lock`, 색인 장부: `data/company-report-index.json`
-- 현재 상태와 마지막 실행 요약: `python -m app.ingest status`
+- 현재 상태(마지막 실행 시각, 마지막 성공일, 재시도 대기 건수, 재시도 중단 목록): `python -m app.ingest status`
 
 ## API 엔드포인트
 
@@ -384,8 +397,8 @@ data/                             # 런타임 사이드카 JSON·업로드 파�
 - 뉴스는 네이버 공식 API 대신 검색결과/기사 페이지를 직접 파싱합니다 — 키는 필요
   없지만 페이지 구조가 바뀌면 셀렉터를 다시 손봐야 할 수 있습니다. 기업당 최근
   `NEWS_ARTICLES_PER_COMPANY`(기본 20)건까지만 가져오고, 이미 수집한 URL은
-  `data/news-index.json`으로 걸러냅니다. 공시도 `data/company-report-index.json`에
-  해시를 기록해 바뀌지 않은 공시는 다시 색인하지 않습니다.
+  `data/news-index.json`으로 걸러냅니다. 공시는 `data/company-report-index.json`에
+  이미 기록된 접수번호이면 내려받기 전에 건너뜁니다.
 - 공시 수집은 이 Python 프로젝트에서만 합니다. 기존 Spring 프로젝트는 같은 Neo4j를
   공유하지만 더 이상 수집을 돌리면 안 됩니다(둘 다 수집하면 청크가 중복됩니다).
 - PDF 업로드는 최대 30MB(`MAX_UPLOAD_BYTES`)까지 받습니다.
