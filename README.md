@@ -253,12 +253,56 @@ cp -r ../src/main/resources/static ../../rag-company-report-py/static
 화면 대신 API로 바로 호출하려면 `http://localhost:8080/docs`에서 각 엔드포인트를
 실행해 볼 수 있습니다.
 
+### 4) 공시 수집 (전체 유형 + 주간 배치)
+
+공시는 DART 전체 유형(A~J)을 수집합니다. 수집은 `python -m app.ingest` CLI가 맡고,
+매주 토요일 07:10에 macOS launchd가 `update`를 자동 실행합니다. 실패하거나 일부만
+성공하면 macOS 알림이 뜨고, 정상 종료 때는 알림이 없습니다.
+
+**처음 실행 순서**
+
+```bash
+source .venv/bin/activate
+
+# 1. 기존 Spring 프로젝트의 색인 장부를 가져옵니다(이미 색인한 공시를 건너뛰기 위함)
+python -m app.ingest import-ledger ../rag-company-report/data/company-report-index.json
+
+# 2. 전체 기간 backfill. M1 기준 약 8시간 걸리니 밤사이에 돌리고,
+#    잠자기 모드로 멈추지 않게 caffeinate를 씁니다.
+caffeinate -i python -m app.ingest backfill
+
+# 3. 결과 확인
+python -m app.ingest status
+
+# 4. 주간 수집 등록 (매주 토요일 07:10)
+scripts/launchd/install.sh
+```
+
+`backfill`은 `--since YYYY-MM-DD`, `--corp CODE`(여러 번 가능), `--types A,B,...`로
+범위를 좁힐 수 있습니다. 등록을 풀려면 `scripts/launchd/uninstall.sh`, 설치될 plist만
+미리 보려면 `scripts/launchd/install.sh --dry-run`.
+
+**자동 실행 전제 조건**: Mac이 잠자고 있었으면 깨어난 뒤 실행되고, 꺼져 있었으면
+다음 주 실행 때 조회 기간이 넓어져 메워집니다. 다만 수집이 돌려면 아래가 떠 있어야
+하므로 Docker Desktop과 Ollama를 로그인할 때 자동 실행되도록 설정하고, Neo4j
+컨테이너도 Docker와 함께 켜지게 합니다.
+
+```bash
+docker update --restart unless-stopped company-report-neo4j
+```
+
+**로그와 상태**
+
+- 실행 로그: `logs/ingest/YYYY-MM-DD.log` (30일 보관), launchd 출력은 `logs/ingest/launchd.log`
+- 상태 파일: `data/ingest-state.json`, 실행 잠금: `data/ingest.lock`, 색인 장부: `data/company-report-index.json`
+- 현재 상태와 마지막 실행 요약: `python -m app.ingest status`
+
 ## API 엔드포인트
 
 | Method | Path | 설명 |
 |---|---|---|
 | GET | `/api/company-report/watchlist` | 워치리스트 기업 목록 조회 |
-| POST | `/api/company-report/index?bgn_de=&end_de=` | 워치리스트 기업의 공시 색인 (기간 미지정 시 최근 2년) |
+| POST | `/api/company-report/index?bgn_de=&end_de=` | 워치리스트 기업의 공시 색인. 날짜를 모두 생략하면 `update`와 같이 마지막 성공 실행 이후 새 공시(7일 겹침)만 수집하고, `bgn_de`와 `end_de`를 둘 다 주면 그 기간을 backfill처럼 수집. 날짜를 하나만 주거나 형식이 틀리면 422, 이미 수집 중이면 409, DART 일일 한도 초과면 503 |
 | POST | `/api/company-report/chat` | `{ question, corpCode, history?, topK?, provider? }` → 답변 + 근거(공시/뉴스) 목록 |
 | POST | `/api/admin/news/fetch` | 워치리스트 전체 기업의 최신 뉴스를 검색·크롤링해 색인 |
 | GET | `/api/admin/documents` | 어드민 업로드 문서 목록 |
@@ -342,6 +386,8 @@ data/                             # 런타임 사이드카 JSON·업로드 파�
   `NEWS_ARTICLES_PER_COMPANY`(기본 20)건까지만 가져오고, 이미 수집한 URL은
   `data/news-index.json`으로 걸러냅니다. 공시도 `data/company-report-index.json`에
   해시를 기록해 바뀌지 않은 공시는 다시 색인하지 않습니다.
+- 공시 수집은 이 Python 프로젝트에서만 합니다. 기존 Spring 프로젝트는 같은 Neo4j를
+  공유하지만 더 이상 수집을 돌리면 안 됩니다(둘 다 수집하면 청크가 중복됩니다).
 - PDF 업로드는 최대 30MB(`MAX_UPLOAD_BYTES`)까지 받습니다.
 - `GET /api/admin/indexed-chunks`의 `textPreview`는 본문 앞 200자 미리보기이고,
   실제 채팅 답변에는 전체 청크 텍스트가 쓰입니다.
