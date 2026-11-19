@@ -11,6 +11,8 @@
         <string>app.ingest</string>
         <string>update</string>
     </array>
+    <key>AbandonProcessGroup</key>
+    <true/>
     <key>WorkingDirectory</key>
     <string>__PROJECT__</string>
     <key>StartCalendarInterval</key>

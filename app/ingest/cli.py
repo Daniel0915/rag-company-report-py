@@ -16,7 +16,14 @@ from app.dependencies import Container
 from app.ingest.guard import count_disclosure_rcept_nos
 from app.ingest.ledger import IndexLedger, LedgerError
 from app.ingest.lock import IngestBusyError
-from app.ingest.notify import build_notification, send_notification
+from app.ingest.notify import (
+    ErrorCollector,
+    RedactingFormatter,
+    build_notification,
+    redact,
+    send_notification,
+    show_failure_alert,
+)
 from app.ingest.preflight import run_preflight
 from app.ingest.runner import RunSummary
 from app.ingest.state import load_state
@@ -25,11 +32,11 @@ from app.services.company_report_index import ALL_DISCLOSURE_TYPES
 logger = logging.getLogger("app.ingest")
 
 FAILURE_TITLE = "공시 수집 실패"
-_LOG_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}\.log$")
+_LOG_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}(\.errors)?\.log$")
 
 
 def prune_logs(log_dir: Path, today: date, keep_days: int = 30) -> int:
-    """`YYYY-MM-DD.log` 중 today - keep_days 보다 오래된 파일을 지우고 지운 수를 돌려준다."""
+    """`YYYY-MM-DD.log`와 `YYYY-MM-DD.errors.log` 중 today - keep_days 보다 오래된 파일을 지우고 지운 수를 돌려준다."""
     if not log_dir.is_dir():
         return 0
     removed = 0
@@ -37,7 +44,7 @@ def prune_logs(log_dir: Path, today: date, keep_days: int = 30) -> int:
         if not _LOG_NAME.match(path.name):
             continue
         try:
-            log_date = date.fromisoformat(path.name[:-4])
+            log_date = date.fromisoformat(path.name[:10])
         except ValueError:
             continue
         if (today - log_date).days > keep_days:
@@ -74,23 +81,37 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _setup_logging(log_dir: Path, today: date) -> None:
+def _setup_logging(log_dir: Path, today: date) -> ErrorCollector:
     log_dir.mkdir(parents=True, exist_ok=True)
-    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    # 모든 핸들러가 같은 포매터를 써서 로그 파일·콘솔 어디에도 API 키가 남지 않게 한다.
+    fmt = RedactingFormatter("%(asctime)s %(levelname)s %(name)s %(message)s")
     file_handler = logging.FileHandler(log_dir / f"{today.isoformat()}.log", mode="a", encoding="utf-8")
+    # 수천 줄 로그에 묻히지 않도록 WARNING 이상만 따로 모은다.
+    errors_handler = logging.FileHandler(errors_log_path(log_dir, today), mode="a", encoding="utf-8")
+    errors_handler.setLevel(logging.WARNING)
     console = logging.StreamHandler()
+    collector = ErrorCollector()
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     # httpx는 요청 URL(DART API 키 포함)을 INFO로 남기고 호출마다 한 줄씩 로그를 채운다.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
-    for handler in (file_handler, console):
+    for handler in (file_handler, errors_handler, console):
         handler.setFormatter(fmt)
         root.addHandler(handler)
+    root.addHandler(collector)
+    return collector
 
 
-def _notify(title: str, message: str) -> None:
+def errors_log_path(log_dir: Path, today: date) -> Path:
+    return log_dir / f"{today.isoformat()}.errors.log"
+
+
+def _alert_failure(title: str, message: str, collector: ErrorCollector, errors_log: Path) -> None:
+    """한 줄 배너를 보낸 뒤 오류 내용이 담긴 알림창을 띄운다."""
+    message = redact(message)  # 어떤 경로의 문장이든 API 키가 알림에 남지 않게 한다
     send_notification(title, message)
+    show_failure_alert(title, message, collector.lines, errors_log)
 
 
 def _first_sentence(text: str) -> str:
@@ -152,7 +173,8 @@ def _advances_success_date(args: argparse.Namespace) -> bool:
 def _cmd_run(args: argparse.Namespace, settings: Settings) -> int:
     today = date.today()
     log_dir = Path(settings.ingest_log_dir)
-    _setup_logging(log_dir, today)
+    collector = _setup_logging(log_dir, today)
+    errors_log = errors_log_path(log_dir, today)
     prune_logs(log_dir, today)
 
     container: Container | None = None
@@ -162,7 +184,7 @@ def _cmd_run(args: argparse.Namespace, settings: Settings) -> int:
         if problems:
             for problem in problems:
                 logger.error("실행 전 점검 실패: %s", problem)
-            _notify(FAILURE_TITLE, problems[0])
+            _alert_failure(FAILURE_TITLE, problems[0], collector, errors_log)
             return 1
 
         runner = container.ingest_runner
@@ -177,24 +199,24 @@ def _cmd_run(args: argparse.Namespace, settings: Settings) -> int:
                 today=today,
                 advance_success_date=_advances_success_date(args),
             )
-        return _finish(summary)
+        return _finish(summary, collector, errors_log)
     except IngestBusyError:
         logger.info("이미 수집이 실행 중이라 건너뜁니다")
         return 0
     except Exception as e:
         logger.exception("수집 중 예상 못 한 오류")
-        _notify(FAILURE_TITLE, f"{type(e).__name__}: {e}")
+        _alert_failure(FAILURE_TITLE, f"{type(e).__name__}: {e}", collector, errors_log)
         return 1
     finally:
         if container is not None:
             container.close()
 
 
-def _finish(summary: RunSummary) -> int:
+def _finish(summary: RunSummary, collector: ErrorCollector, errors_log: Path) -> int:
     notification = build_notification(summary)
     if notification is not None:
         title, message = notification
-        _notify(title, _first_sentence(message))
+        _alert_failure(title, _first_sentence(message), collector, errors_log)
     return 1 if summary.aborted_reason else 0
 
 

@@ -148,7 +148,7 @@ class IngestRunner:
                         return
                     summary.failed += 1
                     summary.list_failed += 1
-                    logger.error("목록 조회 실패 %s/%s: %s", company.name, ty, e)
+                    logger.error("목록 조회 실패 %s/%s: %s", company.name, ty, e, exc_info=True)
                     continue
                 for item in items:
                     if item.rcept_no in done:
@@ -184,7 +184,7 @@ class IngestRunner:
                 summary.given_up += 1
             else:
                 summary.failed += 1
-            logger.error("색인 실패 %s %s: %s", company.name, item.rcept_no, e)
+            logger.error("색인 실패 %s %s: %s", company.name, item.rcept_no, e, exc_info=True)
             return False
 
         record_success(state, item.rcept_no)

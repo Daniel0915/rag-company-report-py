@@ -260,7 +260,9 @@ cp -r ../src/main/resources/static ../../rag-company-report-py/static
 
 공시는 DART 전체 유형(A~J)을 수집합니다. 수집은 `python -m app.ingest` CLI가 맡고,
 매주 토요일 07:10에 macOS launchd가 `update`를 자동 실행합니다. 실패하거나 일부만
-성공하면 macOS 알림이 뜨고, 정상 종료 때는 알림이 없습니다.
+성공하면 macOS 배너 알림과 함께 오류 내용이 담긴 알림창이 뜨고, 정상 종료 때는 알림이 없습니다.
+알림창의 "오류 로그 열기"를 누르면 그날의 `logs/ingest/YYYY-MM-DD.errors.log`(경고 이상만
+모은 로그)가 열립니다. DART API 키는 로그와 알림에서 `***`로 가려집니다.
 
 **처음 실행 순서**
 
