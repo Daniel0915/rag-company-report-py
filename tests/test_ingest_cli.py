@@ -36,3 +36,31 @@ def test_backfill_rejects_unknown_values_before_building_container(extra, monkey
     monkeypatch.setattr("app.ingest.cli.Container.build", boom)
     assert main(["backfill", *extra]) == 1
     assert capsys.readouterr().out.strip()
+
+
+def test_setup_logging_keeps_http_request_urls_out_of_log_file(tmp_path):
+    import logging
+
+    from app.ingest.cli import _setup_logging
+
+    root = logging.getLogger()
+    before_handlers = list(root.handlers)
+    before_level = root.level
+    httpx_level = logging.getLogger("httpx").level
+    httpcore_level = logging.getLogger("httpcore").level
+    try:
+        _setup_logging(tmp_path, date(2026, 11, 21))
+        logging.getLogger("httpx").info("HTTP Request: GET https://x/list.json?crtfc_key=SECRET")
+        logging.getLogger("app.ingest").info("hello")
+        for h in root.handlers:
+            h.flush()
+    finally:
+        for h in list(root.handlers):
+            if h not in before_handlers:
+                root.removeHandler(h)
+                h.close()
+        root.setLevel(before_level)
+        logging.getLogger("httpx").setLevel(httpx_level)
+        logging.getLogger("httpcore").setLevel(httpcore_level)
+    text = (tmp_path / "2026-11-21.log").read_text(encoding="utf-8")
+    assert "hello" in text and "SECRET" not in text

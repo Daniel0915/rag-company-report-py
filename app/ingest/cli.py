@@ -106,6 +106,9 @@ def _setup_logging(log_dir: Path, today: date) -> None:
     console = logging.StreamHandler()
     root = logging.getLogger()
     root.setLevel(logging.INFO)
+    # httpx는 요청 URL(DART API 키 포함)을 INFO로 남기고 호출마다 한 줄씩 로그를 채운다.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     for handler in (file_handler, console):
         handler.setFormatter(fmt)
         root.addHandler(handler)
