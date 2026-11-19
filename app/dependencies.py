@@ -12,6 +12,7 @@ from neo4j import Driver, GraphDatabase
 from app.config import Settings, get_settings
 from app.dart.client import DartApiClient
 from app.ingest.ledger import IndexLedger
+from app.ingest.runner import IngestRunner
 from app.llm.claude_cli import ClaudeCliClient
 from app.llm.gemini import GeminiClient
 from app.llm.ollama import OllamaClient
@@ -41,6 +42,7 @@ class Container:
     disclosure_graph: DisclosureGraphService
     news_graph: NewsGraphService
     index_service: CompanyReportIndexService
+    ingest_runner: IngestRunner
     news_service: NewsIngestService
     chunk_service: IndexedChunkService
     admin_service: AdminDocumentService
@@ -65,6 +67,7 @@ class Container:
 
         disclosure_graph = DisclosureGraphService(driver)
         news_graph = NewsGraphService(driver)
+        index_service = CompanyReportIndexService(dart, registry, disclosure_graph, ledger)
 
         return cls(
             settings=settings,
@@ -78,7 +81,8 @@ class Container:
             registry=registry,
             disclosure_graph=disclosure_graph,
             news_graph=news_graph,
-            index_service=CompanyReportIndexService(dart, registry, disclosure_graph, ledger),
+            index_service=index_service,
+            ingest_runner=IngestRunner(index_service, ledger, settings),
             news_service=NewsIngestService(
                 search_scraper,
                 article_scraper,

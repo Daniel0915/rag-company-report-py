@@ -5,6 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.dependencies import Container, get_container
+from app.ingest.lock import IngestBusyError
 from app.models import ChatRequest, ChatResponse, IndexResult, WatchedCompanyDto
 from app.watchlist import WATCHLIST
 
@@ -25,10 +26,25 @@ def index(
     end_de: str | None = Query(default=None, alias="end_de"),
     container: Container = Depends(get_container),
 ) -> list[IndexResult]:
-    """워치리스트 기업의 정기공시+지분공시를 색인한다. 기간 미지정 시 최근 2년치."""
-    end = date.fromisoformat(end_de) if end_de else date.today()
-    begin = date.fromisoformat(bgn_de) if bgn_de else end.replace(year=end.year - 2)
-    return container.index_service.index_watched_companies(begin, end)
+    """전 유형 공시를 색인한다. 기간 미지정이면 마지막 성공일 이후분을 이어 받고(성공일 갱신),
+    기간을 주면 그 범위만 다시 훑는다(성공일은 건드리지 않음). 다른 수집이 돌고 있으면 409,
+    DART 한도 초과 등으로 중단되면 503."""
+    if (bgn_de is None) != (end_de is None):
+        raise HTTPException(status_code=422, detail="bgn_de와 end_de는 함께 지정해야 합니다.")
+    try:
+        if bgn_de is None:
+            summary = container.ingest_runner.run_update()
+        else:
+            summary = container.ingest_runner.run(
+                date.fromisoformat(bgn_de), date.fromisoformat(end_de), advance_success_date=False
+            )
+    except IngestBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail="날짜는 YYYY-MM-DD 형식이어야 합니다.") from e
+    if summary.aborted_reason:
+        raise HTTPException(status_code=503, detail=summary.aborted_reason)
+    return summary.results
 
 
 @router.post("/api/company-report/chat", response_model=ChatResponse)
