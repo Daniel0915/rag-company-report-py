@@ -57,9 +57,10 @@ def test_error_collector_keeps_error_messages_only():
         log.info("info line")
         log.warning("warn line")
         log.error("err crtfc_key=SECRET line")
+        log.error("first\nsecond")
     finally:
         log.removeHandler(collector)
-    assert collector.lines == ["err crtfc_key=*** line"]
+    assert collector.lines == ["err crtfc_key=*** line", "first second"]
 
 
 def _capture_popen(monkeypatch):
@@ -98,3 +99,14 @@ def test_show_failure_alert_swallows_errors(monkeypatch):
 
     monkeypatch.setattr(subprocess, "Popen", boom)
     show_failure_alert("t", "s", ["e"], Path("/tmp/l"))  # 예외 없음
+
+
+def test_show_failure_alert_keeps_omitted_count_within_body_cap(monkeypatch):
+    calls = _capture_popen(monkeypatch)
+    lines = ["y" * 300] * 20
+    show_failure_alert("t", "요약", lines, Path("/tmp/l"))
+    body = calls[0][0][-2]
+    assert len(body) <= 2000
+    last = body.splitlines()[-1]
+    shown = [l for l in body.splitlines() if l.startswith("y")]
+    assert last == f"외 {20 - len(shown)}건" and len(shown) < 15

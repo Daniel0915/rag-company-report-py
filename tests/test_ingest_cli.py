@@ -123,6 +123,8 @@ def _fake_run_env(monkeypatch, tmp_path, summary, restore_logging):
 
     class FakeRunner:
         def run_update(self):
+            if isinstance(summary, Exception):
+                raise summary
             if summary.failed:
                 logging.getLogger("app.ingest").error("색인 실패 삼성전자 R1: boom")
             return summary
@@ -160,3 +162,16 @@ def test_successful_run_shows_no_alert(tmp_path, monkeypatch, restore_logging):
     banners, alerts = _fake_run_env(monkeypatch, tmp_path, RunSummary(new=1), restore_logging)
     assert main(["update"]) == 0
     assert banners == [] and alerts == []
+
+
+def test_unexpected_exception_alerts_once_without_api_key(tmp_path, monkeypatch, restore_logging):
+    banners, alerts = _fake_run_env(
+        monkeypatch, tmp_path, RuntimeError("boom crtfc_key=SECRET"), restore_logging
+    )
+    assert main(["update"]) == 1
+    assert len(banners) == 1 and len(alerts) == 1
+    assert banners[0][0] == "공시 수집 실패"
+    args, kwargs = alerts[0]
+    assert args[0] == "공시 수집 실패"
+    assert "SECRET" not in repr(banners) and "SECRET" not in repr(alerts)
+    assert str(args[3]).endswith(".errors.log")

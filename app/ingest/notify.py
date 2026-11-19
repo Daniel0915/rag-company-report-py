@@ -38,7 +38,8 @@ class ErrorCollector(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            self.lines.append(redact(record.getMessage()))
+            message = redact(record.getMessage())
+            self.lines.append(" ".join(message.split("\n")))
         except Exception:  # 수집 중 로깅 실패가 수집을 막으면 안 된다
             self.handleError(record)
 
@@ -66,14 +67,21 @@ def send_notification(title: str, message: str) -> None:
 
 
 def _alert_body(summary: str, error_lines: list[str]) -> str:
-    shown = [
+    """요약 + 오류 줄. 2000자를 넘으면 줄을 통째로 덜어 내고 `외 N건`은 항상 남긴다."""
+    clipped = [
         line if len(line) <= MAX_LINE_CHARS else line[:MAX_LINE_CHARS] + "…"
-        for line in error_lines[:MAX_ALERT_LINES]
+        for line in error_lines
     ]
-    if len(error_lines) > MAX_ALERT_LINES:
-        shown.append(f"외 {len(error_lines) - MAX_ALERT_LINES}건")
-    body = summary + "\n\n" + "\n".join(shown)
-    return body[:MAX_BODY_CHARS]
+    body = summary
+    for shown in range(min(len(clipped), MAX_ALERT_LINES), -1, -1):
+        lines = clipped[:shown]
+        omitted = len(clipped) - shown
+        if omitted:
+            lines.append(f"외 {omitted}건")
+        body = summary + "\n\n" + "\n".join(lines)
+        if len(body) <= MAX_BODY_CHARS:
+            return body
+    return body[:MAX_BODY_CHARS]  # 요약 자체가 지나치게 긴 경우의 최후 안전장치
 
 
 def show_failure_alert(title: str, summary: str, error_lines: list[str], log_path: Path) -> None:
