@@ -44,20 +44,22 @@ class IndexLedger:
     def __init__(self, path: str | Path) -> None:
         self._path = Path(path)
         self._records: dict[str, LedgerRecord] = {}
+        self._rcept_nos: set[str] = set()
         self.reload()
 
     def reload(self) -> None:
         self._records = _read_records(self._path)
+        self._rcept_nos = {key.split("/", 1)[0] for key in self._records}
 
     def has_rcept(self, rcept_no: str) -> bool:
-        prefix = f"{rcept_no}/"
-        return any(key.startswith(prefix) for key in self._records)
+        return rcept_no in self._rcept_nos
 
     def get(self, key: str) -> LedgerRecord | None:
         return self._records.get(key)
 
     def put(self, key: str, hash: str, chunk_ids: list[str]) -> None:
         self._records[key] = LedgerRecord(hash, list(chunk_ids))
+        self._rcept_nos.add(key.split("/", 1)[0])
 
     def mark_processed_without_files(self, rcept_no: str) -> None:
         self.put(f"{rcept_no}/-", "", [])
@@ -76,7 +78,7 @@ class IndexLedger:
             raise LedgerError(f"기록 파일 저장 실패: {self._path}") from e
 
     def rcept_nos(self) -> set[str]:
-        return {key.split("/", 1)[0] for key in self._records}
+        return set(self._rcept_nos)
 
     def is_empty(self) -> bool:
         return not self._records
@@ -85,5 +87,6 @@ class IndexLedger:
         if not self.is_empty():
             raise LedgerError("기록이 비어 있지 않아 가져올 수 없습니다")
         self._records = _read_records(Path(source))
+        self._rcept_nos = {key.split("/", 1)[0] for key in self._records}
         self.save()
         return len(self._records)

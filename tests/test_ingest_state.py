@@ -45,3 +45,17 @@ def test_state_round_trip(tmp_path):
     s = IngestState(last_run_at="2026-11-21T07:10:00", last_success_date=date(2026, 11, 21))
     save_state(p, s)
     assert load_state(p) == s
+
+
+def test_save_state_is_atomic_and_leaves_no_tmp_file(tmp_path, monkeypatch):
+    import os
+
+    path = tmp_path / "state.json"
+    save_state(path, IngestState(last_run_at="a"))
+    replaced = []
+    real = os.replace
+    monkeypatch.setattr(os, "replace", lambda s, d: (replaced.append((str(s), str(d))), real(s, d))[1])
+    save_state(path, IngestState(last_run_at="b"))
+    assert replaced == [(str(path) + ".tmp", str(path))]
+    assert load_state(path).last_run_at == "b"
+    assert [p.name for p in tmp_path.iterdir()] == ["state.json"]

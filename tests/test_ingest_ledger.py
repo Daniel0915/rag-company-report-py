@@ -44,3 +44,18 @@ def test_import_from_refuses_when_not_empty(tmp_path):
     assert ledger.import_from(src) == 1
     with pytest.raises(LedgerError):
         ledger.import_from(src)
+
+
+def test_has_rcept_tracks_put_reload_and_import(tmp_path):
+    path = tmp_path / "l.json"
+    ledger = IndexLedger(path)
+    assert not ledger.has_rcept("R1")
+    ledger.put("R1/a.xml", "h", ["c"])
+    ledger.mark_processed_without_files("R2")
+    assert ledger.has_rcept("R1") and ledger.has_rcept("R2") and not ledger.has_rcept("R")
+    ledger.save()
+    other = IndexLedger(tmp_path / "other.json")
+    other.reload()
+    assert not other.has_rcept("R1")
+    assert IndexLedger(path).has_rcept("R1")
+    assert other.import_from(path) == 2 and other.has_rcept("R2")

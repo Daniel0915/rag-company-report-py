@@ -15,6 +15,9 @@ from app.routers import admin_documents, chunks, company_report, graph, news
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)-5s %(name)s : %(message)s"
 )
+# httpx는 요청 URL(DART API 키 포함)을 INFO로 남기므로 콘솔에 찍히지 않게 한다.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 

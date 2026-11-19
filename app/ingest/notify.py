@@ -21,7 +21,13 @@ def send_notification(title: str, message: str) -> None:
         message,
     ]
     try:
-        subprocess.run(cmd, check=False, capture_output=True, timeout=10)
+        result = subprocess.run(
+            cmd, check=False, capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            logger.warning(
+                "macOS 알림 전송 실패(종료 코드 %d): %s", result.returncode, result.stderr.strip()
+            )
     except Exception as e:  # 알림 실패가 수집 결과를 바꾸면 안 된다
         logger.warning("macOS 알림 전송 실패: %s", e)
 

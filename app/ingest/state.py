@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
@@ -51,7 +52,9 @@ def save_state(path: str | Path, state: IngestState) -> None:
     data["last_success_date"] = (
         state.last_success_date.isoformat() if state.last_success_date else None
     )
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, p)
 
 
 def update_window(state: IngestState, today: date) -> tuple[date, date]:
