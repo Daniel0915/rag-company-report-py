@@ -5,3 +5,5 @@ __pycache__/
 data/*.json
 data/admin-uploads/
 .pytest_cache/
+logs/
+data/ingest.lock
