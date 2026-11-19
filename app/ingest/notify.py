@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import subprocess
 
+from app.ingest.runner import RunSummary
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,3 +24,15 @@ def send_notification(title: str, message: str) -> None:
         subprocess.run(cmd, check=False, capture_output=True, timeout=10)
     except Exception as e:  # 알림 실패가 수집 결과를 바꾸면 안 된다
         logger.warning("macOS 알림 전송 실패: %s", e)
+
+
+def build_notification(summary: RunSummary) -> tuple[str, str] | None:
+    """알릴 만한 결과(실패·일부 실패)일 때만 (제목, 본문)을 돌려준다."""
+    if summary.aborted_reason:
+        return ("공시 수집 실패", summary.aborted_reason)
+    if summary.failed > 0 or summary.given_up > 0:
+        message = f"신규 {summary.new}건, 실패 {summary.failed}건"
+        if summary.given_up > 0:
+            message += f", 재시도 중단 {summary.given_up}건"
+        return ("공시 수집 완료", message)
+    return None
