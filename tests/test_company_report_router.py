@@ -72,6 +72,17 @@ def test_index_returns_503_when_aborted():
     assert res.json()["detail"] == "DART 하루 호출 한도 초과"
 
 
+def test_index_returns_503_when_ledger_guard_refuses():
+    message = "기록 파일이 비어 있는데 Neo4j에 공시 청크가 있습니다. 먼저 import-ledger를 실행하세요"
+    runner = MagicMock()
+    runner.run_update.return_value = RunSummary(aborted_reason=message)
+
+    res = _client(runner).post("/api/company-report/index")
+
+    assert res.status_code == 503
+    assert res.json()["detail"] == message
+
+
 def test_index_rejects_single_date():
     runner = MagicMock()
     client = _client(runner)

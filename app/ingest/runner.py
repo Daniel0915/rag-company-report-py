@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from typing import Callable
 
 from app import watchlist
 from app.config import Settings
 from app.dart.dto import DisclosureItem
 from app.dart.errors import DartApiError
+from app.ingest.guard import ledger_guard
 from app.ingest.ledger import IndexLedger
 from app.ingest.lock import ingest_lock
 from app.ingest.state import (
@@ -37,6 +39,7 @@ class RunSummary:
     empty: int = 0
     skipped: int = 0
     failed: int = 0
+    list_failed: int = 0
     given_up: int = 0
     chunks: int = 0
     aborted_reason: str | None = None
@@ -49,11 +52,16 @@ def _is_rate_limit(e: Exception) -> bool:
 
 class IngestRunner:
     def __init__(
-        self, index_service: CompanyReportIndexService, ledger: IndexLedger, settings: Settings
+        self,
+        index_service: CompanyReportIndexService,
+        ledger: IndexLedger,
+        settings: Settings,
+        disclosure_chunk_count: Callable[[], int],
     ) -> None:
         self._index = index_service
         self._ledger = ledger
         self._settings = settings
+        self._disclosure_chunk_count = disclosure_chunk_count
 
     def run_update(self, today: date | None = None) -> RunSummary:
         today = today or date.today()
@@ -82,8 +90,17 @@ class IngestRunner:
             state = load_state(self._settings.ingest_state_file)
             state.last_run_at = datetime.now().isoformat(timespec="seconds")
             try:
-                self._run_locked(state, summary, bgn_de, end_de, targets, types)
-                if summary.aborted_reason is None and advance_success_date:
+                refusal = ledger_guard(self._ledger, self._disclosure_chunk_count())
+                if refusal:
+                    summary.aborted_reason = refusal
+                    logger.error(refusal)
+                else:
+                    self._run_locked(state, summary, bgn_de, end_de, targets, types)
+                if (
+                    summary.aborted_reason is None
+                    and not summary.list_failed
+                    and advance_success_date
+                ):
                     state.last_success_date = today
             finally:
                 save_state(self._settings.ingest_state_file, state)
@@ -130,6 +147,7 @@ class IngestRunner:
                         logger.error("%s: 목록 조회 중 호출 한도 초과", company.name)
                         return
                     summary.failed += 1
+                    summary.list_failed += 1
                     logger.error("목록 조회 실패 %s/%s: %s", company.name, ty, e)
                     continue
                 for item in items:

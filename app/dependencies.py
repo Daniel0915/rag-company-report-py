@@ -11,6 +11,7 @@ from neo4j import Driver, GraphDatabase
 
 from app.config import Settings, get_settings
 from app.dart.client import DartApiClient
+from app.ingest.guard import count_disclosure_chunks
 from app.ingest.ledger import IndexLedger
 from app.ingest.runner import IngestRunner
 from app.llm.claude_cli import ClaudeCliClient
@@ -82,7 +83,9 @@ class Container:
             disclosure_graph=disclosure_graph,
             news_graph=news_graph,
             index_service=index_service,
-            ingest_runner=IngestRunner(index_service, ledger, settings),
+            ingest_runner=IngestRunner(
+                index_service, ledger, settings, lambda: count_disclosure_chunks(driver)
+            ),
             news_service=NewsIngestService(
                 search_scraper,
                 article_scraper,

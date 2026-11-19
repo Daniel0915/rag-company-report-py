@@ -2,16 +2,20 @@ from datetime import date
 
 import pytest
 
-from app.ingest.cli import build_parser, ledger_guard, main, prune_logs
-from app.ingest.ledger import IndexLedger
+from app.ingest.cli import _advances_success_date, build_parser, main, prune_logs
 
 
-def test_ledger_guard_refuses_empty_ledger_with_existing_chunks(tmp_path):
-    assert "import-ledger" in ledger_guard(IndexLedger(tmp_path / "l.json"), 28362)
-
-
-def test_ledger_guard_allows_fresh_install(tmp_path):
-    assert ledger_guard(IndexLedger(tmp_path / "l.json"), 0) is None
+@pytest.mark.parametrize(
+    "argv, expected",
+    [
+        (["backfill"], True),
+        (["backfill", "--since", "2025-01-01"], False),
+        (["backfill", "--corp", "00126380"], False),
+        (["backfill", "--types", "A"], False),
+    ],
+)
+def test_only_default_scope_backfill_advances_success_date(argv, expected):
+    assert _advances_success_date(build_parser().parse_args(argv)) is expected
 
 
 def test_prune_logs_keeps_last_30_days(tmp_path):

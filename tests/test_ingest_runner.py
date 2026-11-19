@@ -38,13 +38,13 @@ def item(rcept_no, corp=SAMSUNG):
     return DisclosureItem(corp_code=corp, rcept_no=rcept_no, report_nm="보고서", rcept_dt="20261101")
 
 
-def make(tmp_path, fake):
+def make(tmp_path, fake, chunk_count=lambda: 0):
     settings = Settings(
         ingest_state_file=str(tmp_path / "state.json"),
         ingest_lock_file=str(tmp_path / "ingest.lock"),
         company_report_index_file=str(tmp_path / "index.json"),
     )
-    runner = IngestRunner(fake, IndexLedger(settings.company_report_index_file), settings)
+    runner = IngestRunner(fake, IndexLedger(settings.company_report_index_file), settings, chunk_count)
     return runner, settings
 
 
@@ -134,9 +134,11 @@ def test_list_failure_skips_only_that_pair(tmp_path):
             return super().list_disclosures(corp_code, bgn_de, end_de, pblntf_ty)
 
     fake = Fake({(SAMSUNG, "B"): [item("R1")]})
-    runner, _ = make(tmp_path, fake)
+    runner, s = make(tmp_path, fake)
+    save_state(s.ingest_state_file, IngestState(last_success_date=date(2026, 10, 1)))
     summary = runner.run(D1, D2, corp_codes=[SAMSUNG], types=["A", "B"], today=D2)
     assert summary.failed == 1 and summary.new == 1
+    assert load_state(s.ingest_state_file).last_success_date == date(2026, 10, 1)
 
 
 def test_list_rate_limit_aborts(tmp_path):
@@ -159,3 +161,14 @@ def test_pending_outside_filter_or_watchlist_is_skipped(tmp_path):
     runner.run(D1, D2, corp_codes=[SAMSUNG], types=["A"], today=D2)
     assert fake.index_calls == []
     assert len(load_state(s.ingest_state_file).pending) == 2
+
+
+def test_empty_ledger_with_existing_chunks_refuses_to_run(tmp_path):
+    fake = FakeIndex({(SAMSUNG, "A"): [item("R1")]})
+    runner, s = make(tmp_path, fake, chunk_count=lambda: 28362)
+    save_state(s.ingest_state_file, IngestState(last_success_date=date(2026, 10, 1)))
+    summary = runner.run(D1, D2, corp_codes=[SAMSUNG], types=["A"], today=D2)
+    assert "import-ledger" in summary.aborted_reason
+    assert fake.index_calls == [] and fake.list_calls == []
+    state = load_state(s.ingest_state_file)
+    assert state.last_success_date == date(2026, 10, 1) and state.last_run_at

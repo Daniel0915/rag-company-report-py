@@ -8,11 +8,12 @@ import re
 from datetime import date
 from pathlib import Path
 
-from neo4j import Driver, GraphDatabase
+from neo4j import GraphDatabase
 
 from app import watchlist
 from app.config import Settings, get_settings
 from app.dependencies import Container
+from app.ingest.guard import count_disclosure_rcept_nos
 from app.ingest.ledger import IndexLedger, LedgerError
 from app.ingest.lock import IngestBusyError
 from app.ingest.notify import build_notification, send_notification
@@ -25,32 +26,6 @@ logger = logging.getLogger("app.ingest")
 
 FAILURE_TITLE = "공시 수집 실패"
 _LOG_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}\.log$")
-
-_DISCLOSURE_NODES = (
-    "MATCH (n) WHERE any(l IN labels(n) WHERE l STARTS WITH 'CompanyReportChunk_') "
-    "AND n.`metadata.doc_type` IS NULL"
-)
-
-
-def ledger_guard(ledger: IndexLedger, disclosure_chunk_count: int) -> str | None:
-    """기록이 비었는데 Neo4j에 공시 청크가 있으면 중복 색인을 막기 위해 거부 메시지를 돌려준다."""
-    if ledger.is_empty() and disclosure_chunk_count > 0:
-        return (
-            "기록 파일이 비어 있는데 Neo4j에 공시 청크가 있습니다. "
-            "먼저 python -m app.ingest import-ledger <Spring 기록 파일>을 실행하세요"
-        )
-    return None
-
-
-def count_disclosure_chunks(driver: Driver) -> int:
-    with driver.session() as session:
-        return session.run(f"{_DISCLOSURE_NODES} RETURN count(n) AS total").single()["total"]
-
-
-def count_disclosure_rcept_nos(driver: Driver) -> int:
-    query = f"{_DISCLOSURE_NODES} RETURN count(DISTINCT n.`metadata.rcept_no`) AS total"
-    with driver.session() as session:
-        return session.run(query).single()["total"]
 
 
 def prune_logs(log_dir: Path, today: date, keep_days: int = 30) -> int:
@@ -169,6 +144,11 @@ def _validate_backfill(args: argparse.Namespace) -> str | None:
     return None
 
 
+def _advances_success_date(args: argparse.Namespace) -> bool:
+    """기본 범위(옵션 없는 backfill) 전체 수집만 마지막 성공일을 앞당긴다."""
+    return not (args.since or args.corp or args.types)
+
+
 def _cmd_run(args: argparse.Namespace, settings: Settings) -> int:
     today = date.today()
     log_dir = Path(settings.ingest_log_dir)
@@ -185,13 +165,6 @@ def _cmd_run(args: argparse.Namespace, settings: Settings) -> int:
             _notify(FAILURE_TITLE, problems[0])
             return 1
 
-        ledger = container.ingest_runner._ledger  # 색인 서비스와 같은 기록 인스턴스를 쓴다
-        refusal = ledger_guard(ledger, count_disclosure_chunks(container.driver))
-        if refusal:
-            logger.error(refusal)
-            _notify(FAILURE_TITLE, _first_sentence(refusal))
-            return 1
-
         runner = container.ingest_runner
         if args.command == "update":
             summary = runner.run_update()
@@ -202,7 +175,7 @@ def _cmd_run(args: argparse.Namespace, settings: Settings) -> int:
                 corp_codes=args.corp,
                 types=args.types,
                 today=today,
-                advance_success_date=False,
+                advance_success_date=_advances_success_date(args),
             )
         return _finish(summary)
     except IngestBusyError:
@@ -220,7 +193,8 @@ def _cmd_run(args: argparse.Namespace, settings: Settings) -> int:
 def _finish(summary: RunSummary) -> int:
     notification = build_notification(summary)
     if notification is not None:
-        _notify(*notification)
+        title, message = notification
+        _notify(title, _first_sentence(message))
     return 1 if summary.aborted_reason else 0
 
 
