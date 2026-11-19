@@ -278,7 +278,7 @@ python -m app.ingest status
 scripts/launchd/install.sh
 ```
 
-`backfill`은 `--since YYYY-MM-DD`, `--corp CODE`(여러 번 가능), `--types A,B,...`로
+`backfill`은 `--since YYYY-MM-DD`, `--corp CODE [CODE ...]`(공백으로 여러 개), `--types A,B,...`로
 범위를 좁힐 수 있습니다. 등록을 풀려면 `scripts/launchd/uninstall.sh`, 설치될 plist만
 미리 보려면 `scripts/launchd/install.sh --dry-run`.
 
