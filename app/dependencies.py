@@ -11,6 +11,7 @@ from neo4j import Driver, GraphDatabase
 
 from app.config import Settings, get_settings
 from app.dart.client import DartApiClient
+from app.ingest.ledger import IndexLedger
 from app.llm.claude_cli import ClaudeCliClient
 from app.llm.gemini import GeminiClient
 from app.llm.ollama import OllamaClient
@@ -59,6 +60,7 @@ class Container:
         article_scraper = NaverArticleScraper()
 
         registry = CompanyVectorStoreRegistry(driver, ollama, settings)
+        ledger = IndexLedger(settings.company_report_index_file)
         registry.init_watchlist()
 
         disclosure_graph = DisclosureGraphService(driver)
@@ -76,9 +78,7 @@ class Container:
             registry=registry,
             disclosure_graph=disclosure_graph,
             news_graph=news_graph,
-            index_service=CompanyReportIndexService(
-                dart, registry, disclosure_graph, settings.company_report_index_file
-            ),
+            index_service=CompanyReportIndexService(dart, registry, disclosure_graph, ledger),
             news_service=NewsIngestService(
                 search_scraper,
                 article_scraper,

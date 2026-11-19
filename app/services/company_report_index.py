@@ -1,39 +1,43 @@
 """
-워치리스트 기업의 정기공시(사업/반기/분기보고서)와 지분공시(대량보유상황보고서,
-임원ㆍ주요주주소유보고서 등)를 DART에서 받아 목차 단위(DartXmlDocumentReader)로 쪼갠 뒤
-기업별 벡터 인덱스에 색인한다. rcept_no+파일명 단위 해시로 이미 색인된 문서는
-재다운로드/재색인하지 않는다(DART API 일일 호출 제한 때문에 같은 문서를 반복해서 받지 않도록).
+워치리스트 기업의 모든 유형(A~J) DART 공시를 "공시 1건" 단위로 색인한다.
+공시를 목차 단위(DartXmlDocumentReader)로 쪼갠 뒤 기업별 벡터 인덱스에 넣는다.
+
+이미 색인한 공시는 다운로드 전에 건너뛴다: IndexLedger에 그 접수번호의 키가 하나라도 있으면
+fetch_document를 부르지 않는다(DART 일일 호출 한도 때문에, 그리고 같은 공시의 청크가
+Neo4j에 중복으로 쌓이지 않도록). 어떤 공시를 언제 돌릴지(기간·재시도·잠금)는 호출자(IngestRunner)의 몫이다.
+정정 공시("[기재정정]..." 등)는 원본 공시와 CORRECTS 관계로 잇고 청크 메타데이터에 원본 접수번호를 남긴다.
 """
 from __future__ import annotations
 
 import hashlib
-import json
-import threading
+import re
 import time
-from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 
 from app.dart.client import DartApiClient
 from app.dart.dto import DisclosureItem
 from app.dart.xml_reader import DartXmlDocumentReader
+from app.ingest.ledger import IndexLedger
 from app.models import IndexResult
 from app.services.disclosure_graph import DisclosureGraphService
 from app.vector.registry import CompanyVectorStoreRegistry
 from app.vector.splitter import TokenTextSplitter
-from app.watchlist import WATCHLIST, WatchedCompany
+from app.watchlist import WatchedCompany
 
-# 색인 대상 공시유형(pblntf_ty). A=정기공시, D=지분공시.
-DISCLOSURE_TYPES = ["A", "D"]
+# 수집 대상 공시유형(pblntf_ty) 전부. A=정기, B=주요사항, C=발행, D=지분, E=기타, F=외부감사,
+# G=펀드, H=자산유동화, I=거래소, J=공정위.
+ALL_DISCLOSURE_TYPES = list("ABCDEFGHIJ")
 PAGE_SIZE = 100
 # opendart.fss.or.kr는 짧은 시간에 요청이 몰리면 커넥션을 끊는 방식으로 막는다 - 호출 사이에 쉬어간다.
 REQUEST_INTERVAL_SECONDS = 0.3
 
+_CORRECTION_PREFIX = re.compile(r"^\[[^\]]+\]\s*")
 
-@dataclass
-class _DocRecord:
-    hash: str
-    chunkIds: list[str]
+
+def correction_base_name(report_nm: str) -> str | None:
+    """"[기재정정]사업보고서"처럼 정정 접두어가 있으면 뗀 이름, 없으면 None."""
+    match = _CORRECTION_PREFIX.match(report_nm)
+    return report_nm[match.end():] if match else None
 
 
 class CompanyReportIndexService:
@@ -42,35 +46,15 @@ class CompanyReportIndexService:
         dart_client: DartApiClient,
         registry: CompanyVectorStoreRegistry,
         graph_service: DisclosureGraphService,
-        sidecar_path: str,
+        ledger: IndexLedger,
     ) -> None:
         self._dart = dart_client
         self._registry = registry
         self._graph = graph_service
         self._splitter = TokenTextSplitter()
-        self._sidecar_file = Path(sidecar_path)
-        self._sidecar_file.parent.mkdir(parents=True, exist_ok=True)
-        self._sidecar = self._load_sidecar()
-        self._lock = threading.Lock()
+        self._ledger = ledger
 
-    def index_watched_companies(self, bgn_de: date, end_de: date) -> list[IndexResult]:
-        """워치리스트 전체 기업의 기간 내 정기공시+지분공시를 색인한다."""
-        with self._lock:
-            results: list[IndexResult] = []
-            for company in WATCHLIST:
-                results.extend(self._index_company(company, bgn_de, end_de))
-            return results
-
-    def _index_company(
-        self, company: WatchedCompany, bgn_de: date, end_de: date
-    ) -> list[IndexResult]:
-        results: list[IndexResult] = []
-        for pblntf_ty in DISCLOSURE_TYPES:
-            for item in self._search_all_pages(company.corp_code, bgn_de, end_de, pblntf_ty):
-                results.append(self._index_disclosure(company, item, pblntf_ty))
-        return results
-
-    def _search_all_pages(
+    def list_disclosures(
         self, corp_code: str, bgn_de: date, end_de: date, pblntf_ty: str
     ) -> list[DisclosureItem]:
         """total_page까지 전부 순회해서 기간 내 해당 공시유형의 모든 공시를 모은다."""
@@ -89,81 +73,67 @@ class CompanyReportIndexService:
             page_no += 1
         return all_items
 
-    def _index_disclosure(
+    def index_disclosure(
         self, company: WatchedCompany, item: DisclosureItem, pblntf_ty: str
     ) -> IndexResult:
         self._graph.record_disclosure(company, item, pblntf_ty)
-        vector_store = self._registry.for_company(company.corp_code)
 
-        files = self._dart.fetch_document(item.rcept_no)
-        time.sleep(REQUEST_INTERVAL_SECONDS)
+        # 다운로드 전에 건너뛴다 - 이미 색인한 공시를 다시 받으면 청크가 중복된다.
+        if self._ledger.has_rcept(item.rcept_no):
+            return self._result(company, item, "skipped", 0)
+
+        tag_meta = {
+            "corp_name": company.name,
+            "corp_code": company.corp_code,
+            "stock_code": company.stock_code,
+            "rcept_no": item.rcept_no,
+            "report_nm": item.report_nm,
+            "rcept_dt": item.rcept_dt,
+            "pblntf_ty": pblntf_ty,
+        }
+        base_name = correction_base_name(item.report_nm)
+        if base_name is not None:
+            original = self._graph.record_correction(
+                company.corp_code, item.rcept_no, base_name
+            )
+            if original:
+                tag_meta["corrects_rcept_no"] = original
 
         total_chunks = 0
-        any_new = False
-        any_updated = False
+        try:
+            files = self._dart.fetch_document(item.rcept_no)
+            time.sleep(REQUEST_INTERVAL_SECONDS)
 
-        for source_file, xml_bytes in files.items():
-            sidecar_key = f"{item.rcept_no}/{source_file}"
-            digest = hashlib.md5(xml_bytes).hexdigest()
+            xml_files = {n: b for n, b in files.items() if n.lower().endswith(".xml")}
+            if not xml_files:
+                self._ledger.mark_processed_without_files(item.rcept_no)
 
-            existing = self._sidecar.get(sidecar_key)
-            if existing is not None and existing.hash == digest:
-                continue
+            vector_store = self._registry.for_company(company.corp_code)
+            for source_file, xml_bytes in xml_files.items():
+                sections = DartXmlDocumentReader(xml_bytes, source_file).read()
+                chunks = self._splitter.apply([d.with_metadata(tag_meta) for d in sections])
+                vector_store.add(chunks)
+                # 청크 0개여도 기록한다 - 다음 실행에서 같은 파일을 다시 받지 않게.
+                self._ledger.put(
+                    f"{item.rcept_no}/{source_file}",
+                    hashlib.md5(xml_bytes).hexdigest(),
+                    [c.id for c in chunks],
+                )
+                total_chunks += len(chunks)
+        finally:
+            # 중간에 실패해도 이미 벡터 저장소에 넣은 파일은 기록해 두어야 재시도 때 중복되지 않는다.
+            self._ledger.save()
 
-            sections = DartXmlDocumentReader(xml_bytes, source_file).read()
-            tag_meta = {
-                "corp_name": company.name,
-                "corp_code": company.corp_code,
-                "stock_code": company.stock_code,
-                "rcept_no": item.rcept_no,
-                "report_nm": item.report_nm,
-                "rcept_dt": item.rcept_dt,
-                "pblntf_ty": pblntf_ty,
-            }
-            chunks = self._splitter.apply([d.with_metadata(tag_meta) for d in sections])
+        return self._result(company, item, "new" if total_chunks > 0 else "empty", total_chunks)
 
-            if existing is not None:
-                vector_store.delete(existing.chunkIds)
-                any_updated = True
-            else:
-                any_new = True
-            vector_store.add(chunks)
-
-            self._sidecar[sidecar_key] = _DocRecord(digest, [c.id for c in chunks])
-            total_chunks += len(chunks)
-
-        if total_chunks > 0:
-            self._persist_sidecar()
-
-        status = "new" if any_new else ("updated" if any_updated else "skipped")
+    @staticmethod
+    def _result(
+        company: WatchedCompany, item: DisclosureItem, status: str, chunks: int
+    ) -> IndexResult:
         return IndexResult(
             corpName=company.name,
             rceptNo=item.rcept_no,
             reportNm=item.report_nm,
             status=status,
-            chunks=total_chunks,
+            chunks=chunks,
         )
-
-    def _load_sidecar(self) -> dict[str, _DocRecord]:
-        if not self._sidecar_file.exists():
-            return {}
-        try:
-            raw = json.loads(self._sidecar_file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return {}
-        return {
-            key: _DocRecord(value.get("hash", ""), value.get("chunkIds", []))
-            for key, value in raw.items()
-        }
-
-    def _persist_sidecar(self) -> None:
-        payload = {
-            key: {"hash": record.hash, "chunkIds": record.chunkIds}
-            for key, record in self._sidecar.items()
-        }
-        try:
-            self._sidecar_file.write_text(
-                json.dumps(payload, ensure_ascii=False), encoding="utf-8"
-            )
-        except OSError as e:
-            raise RuntimeError("색인 사이드카 저장 실패") from e

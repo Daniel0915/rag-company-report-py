@@ -29,6 +29,15 @@ MERGE (f:Filer {name: $filerName})
 MERGE (f)-[:DISCLOSED]->(r)
 """
 
+_RECORD_CORRECTION = """
+MATCH (o:Report)-[:FILED_BY]->(:Company {corp_code: $corpCode})
+WHERE o.report_nm = $baseName AND o.rcept_no <> $rceptNo
+WITH o ORDER BY o.rcept_dt DESC LIMIT 1
+MATCH (c:Report {rcept_no: $rceptNo})
+MERGE (c)-[:CORRECTS]->(o)
+RETURN o.rcept_no AS originalRceptNo
+"""
+
 _FIND_FILERS = """
 MATCH (f:Filer)-[:DISCLOSED]->(r:Report)-[:FILED_BY]->(co:Company {corp_code: $corpCode})
 RETURN f.name AS filerName, r.report_nm AS reportNm, r.rcept_dt AS rceptDt, r.rcept_no AS rceptNo
@@ -87,6 +96,14 @@ class DisclosureGraphService:
 
             if pblntf_ty == "D" and item.flr_nm.strip() and item.flr_nm != company.name:
                 session.run(_RECORD_FILER, rceptNo=item.rcept_no, filerName=item.flr_nm)
+
+    def record_correction(self, corp_code: str, rcept_no: str, base_name: str) -> str | None:
+        """정정 공시를 같은 기업의 가장 최근 원본(report_nm == base_name)에 CORRECTS로 잇는다. 원본이 없으면 None."""
+        with self._driver.session() as session:
+            record = session.run(
+                _RECORD_CORRECTION, corpCode=corp_code, rceptNo=rcept_no, baseName=base_name
+            ).single()
+        return record["originalRceptNo"] if record else None
 
     def find_filers(self, corp_code: str, limit: int) -> list[FilerDisclosureDto]:
         """특정 기업에 지분을 공시한 제출인 목록(최근순)."""
