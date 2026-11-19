@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     news_index_file: str = "data/news-index.json"
     news_articles_per_company: int = 20
 
+    # 공시 수집 배치
+    ingest_state_file: str = "data/ingest-state.json"
+    ingest_lock_file: str = "data/ingest.lock"
+    ingest_log_dir: str = "logs/ingest"
+
     max_upload_bytes: int = 30 * 1024 * 1024
 
 
