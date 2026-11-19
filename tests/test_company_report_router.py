@@ -82,3 +82,26 @@ def test_index_rejects_single_date():
         assert "bgn_de" in res.json()["detail"]
     runner.run.assert_not_called()
     runner.run_update.assert_not_called()
+
+
+def test_index_rejects_malformed_date():
+    runner = MagicMock()
+
+    res = _client(runner).post("/api/company-report/index?bgn_de=2026-13-01&end_de=2026-01-31")
+
+    assert res.status_code == 422
+    assert "YYYY-MM-DD" in res.json()["detail"]
+    runner.run.assert_not_called()
+    runner.run_update.assert_not_called()
+
+
+def test_index_runner_value_error_is_not_masked_as_422():
+    runner = MagicMock()
+    runner.run_update.side_effect = ValueError("손상된 상태 파일")
+    app = FastAPI()
+    app.include_router(company_report.router)
+    app.dependency_overrides[get_container] = lambda: SimpleNamespace(ingest_runner=runner)
+
+    res = TestClient(app, raise_server_exceptions=False).post("/api/company-report/index")
+
+    assert res.status_code == 500

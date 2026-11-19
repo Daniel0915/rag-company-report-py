@@ -32,16 +32,17 @@ def index(
     if (bgn_de is None) != (end_de is None):
         raise HTTPException(status_code=422, detail="bgn_de와 end_de는 함께 지정해야 합니다.")
     try:
-        if bgn_de is None:
-            summary = container.ingest_runner.run_update()
-        else:
-            summary = container.ingest_runner.run(
-                date.fromisoformat(bgn_de), date.fromisoformat(end_de), advance_success_date=False
-            )
-    except IngestBusyError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+        begin = date.fromisoformat(bgn_de) if bgn_de else None
+        end = date.fromisoformat(end_de) if end_de else None
     except ValueError as e:
         raise HTTPException(status_code=422, detail="날짜는 YYYY-MM-DD 형식이어야 합니다.") from e
+    try:
+        if begin is None:
+            summary = container.ingest_runner.run_update()
+        else:
+            summary = container.ingest_runner.run(begin, end, advance_success_date=False)
+    except IngestBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     if summary.aborted_reason:
         raise HTTPException(status_code=503, detail=summary.aborted_reason)
     return summary.results
