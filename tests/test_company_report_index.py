@@ -34,14 +34,20 @@ class FakeDart:
 
 
 class FakeStore:
-    def __init__(self):
+    def __init__(self, fail_on_add_call=None):
         self.added = []
+        self.deleted = []
+        self.add_calls = 0
+        self.fail_on_add_call = fail_on_add_call
 
     def add(self, chunks):
+        self.add_calls += 1
+        if self.add_calls == self.fail_on_add_call:
+            raise RuntimeError("add failed")
         self.added.extend(chunks)
 
     def delete(self, ids):
-        raise AssertionError("delete must not be called")
+        self.deleted.extend(ids)
 
 
 class FakeRegistry:
@@ -125,3 +131,25 @@ def test_correction_base_name():
     assert correction_base_name("[기재정정]사업보고서 (2024.12)") == "사업보고서 (2024.12)"
     assert correction_base_name("[첨부정정] 영업(잠정)실적(공정공시)") == "영업(잠정)실적(공정공시)"
     assert correction_base_name("사업보고서 (2024.12)") is None
+
+
+def test_failure_midway_rolls_back_and_leaves_no_ledger_key(tmp_path):
+    xml_b = XML.replace("반도체".encode(), "배터리".encode())
+    service, dart, registry, _, _, path = _service(
+        tmp_path, {"A.xml": XML, "B.xml": xml_b}
+    )
+    registry.store.fail_on_add_call = 2
+    with pytest.raises(RuntimeError):
+        service.index_disclosure(COMPANY, _item("R9"), "A")
+
+    assert not IndexLedger(path).has_rcept("R9")
+    first_ids = [c.id for c in registry.store.added]
+    assert first_ids and set(first_ids) <= set(registry.store.deleted)
+    # B.xml 청크 id도 add 전에 만들어졌으므로 함께 지워진다.
+    assert len(registry.store.deleted) > len(first_ids)
+
+    registry.store.fail_on_add_call = None
+    result = service.index_disclosure(COMPANY, _item("R9"), "A")
+    assert dart.fetched == ["R9", "R9"]
+    assert result.status == "new"
+    assert IndexLedger(path).has_rcept("R9")

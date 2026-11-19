@@ -30,10 +30,10 @@ MERGE (f)-[:DISCLOSED]->(r)
 """
 
 _RECORD_CORRECTION = """
+MATCH (c:Report {rcept_no: $rceptNo})-[:FILED_BY]->(:Company {corp_code: $corpCode})
 MATCH (o:Report)-[:FILED_BY]->(:Company {corp_code: $corpCode})
-WHERE o.report_nm = $baseName AND o.rcept_no <> $rceptNo
-WITH o ORDER BY o.rcept_dt DESC LIMIT 1
-MATCH (c:Report {rcept_no: $rceptNo})
+WHERE o.report_nm = $baseName AND o.rcept_no <> c.rcept_no AND o.rcept_dt <= c.rcept_dt
+WITH c, o ORDER BY o.rcept_dt DESC, o.rcept_no DESC LIMIT 1
 MERGE (c)-[:CORRECTS]->(o)
 RETURN o.rcept_no AS originalRceptNo
 """

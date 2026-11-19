@@ -100,29 +100,40 @@ class CompanyReportIndexService:
                 tag_meta["corrects_rcept_no"] = original
 
         total_chunks = 0
+        # 공시 1건은 하나의 작업 단위다: 모든 파일이 성공해야만 기록 파일에 넣는다.
+        # 일부만 기록하면 재시도가 "이미 색인함"으로 건너뛰어 나머지 파일이 영영 빠진다.
+        entries: list[tuple[str, str, list[str]]] = []
+        produced_ids: list[str] = []
+        vector_store = self._registry.for_company(company.corp_code)
         try:
             files = self._dart.fetch_document(item.rcept_no)
             time.sleep(REQUEST_INTERVAL_SECONDS)
 
             xml_files = {n: b for n, b in files.items() if n.lower().endswith(".xml")}
-            if not xml_files:
-                self._ledger.mark_processed_without_files(item.rcept_no)
-
-            vector_store = self._registry.for_company(company.corp_code)
             for source_file, xml_bytes in xml_files.items():
                 sections = DartXmlDocumentReader(xml_bytes, source_file).read()
                 chunks = self._splitter.apply([d.with_metadata(tag_meta) for d in sections])
+                ids = [c.id for c in chunks]
+                # add가 배치(16개) 단위로 쓰다 중간에 실패해도 지울 수 있도록 add 전에 id를 적어 둔다.
+                produced_ids.extend(ids)
                 vector_store.add(chunks)
                 # 청크 0개여도 기록한다 - 다음 실행에서 같은 파일을 다시 받지 않게.
-                self._ledger.put(
-                    f"{item.rcept_no}/{source_file}",
-                    hashlib.md5(xml_bytes).hexdigest(),
-                    [c.id for c in chunks],
+                entries.append(
+                    (f"{item.rcept_no}/{source_file}", hashlib.md5(xml_bytes).hexdigest(), ids)
                 )
                 total_chunks += len(chunks)
-        finally:
-            # 중간에 실패해도 이미 벡터 저장소에 넣은 파일은 기록해 두어야 재시도 때 중복되지 않는다.
-            self._ledger.save()
+        except BaseException:
+            # 기록 파일에는 넣지 않으므로, 이번 공시로 넣은 청크는 되돌려 재시도 때 중복되지 않게 한다.
+            if produced_ids:
+                vector_store.delete(produced_ids)
+            raise
+
+        if xml_files:
+            for key, digest, ids in entries:
+                self._ledger.put(key, digest, ids)
+        else:
+            self._ledger.mark_processed_without_files(item.rcept_no)
+        self._ledger.save()
 
         return self._result(company, item, "new" if total_chunks > 0 else "empty", total_chunks)
 
