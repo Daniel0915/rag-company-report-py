@@ -7,6 +7,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 
 from app.eval.dataset import Item, Section
+from app.services.company_chat import _build_context_text
+from app.vector.document import Document
 
 REFUSAL_PHRASES: tuple[str, ...] = (
     "모릅니다",
@@ -24,19 +26,24 @@ _NO_TYPE = "없음"
 
 @dataclass(frozen=True)
 class Retrieved:
-    rcept_no: str
-    source_file: str
-    section_order: int
-    section_title: str
+    """검색된 청크. 뉴스·어드민 PDF 청크는 source_file·section_order 등이 없어 None일 수 있다."""
+
+    rcept_no: str | None
+    source_file: str | None
+    section_order: int | None
+    section_title: str | None
     score: float | None
     text: str
+    corp_name: str | None = None
+    report_nm: str | None = None
 
     def __post_init__(self) -> None:
         # Neo4j 메타데이터가 문자열로 줄 수 있어 정수로 맞춘다.
-        object.__setattr__(self, "section_order", int(self.section_order))
+        if self.section_order is not None:
+            object.__setattr__(self, "section_order", int(self.section_order))
 
     @property
-    def key(self) -> tuple[str, str, int]:
+    def key(self) -> tuple[str | None, str | None, int | None]:
         return (self.rcept_no, self.source_file, self.section_order)
 
 
@@ -89,8 +96,21 @@ def unsupported_numbers(answer: str, context_texts: list[str], question: str) ->
     return len(extract_numbers(answer) - supported)
 
 
+def _seen_by_model(retrieved: list[Retrieved]) -> list[str]:
+    """모델이 본 컨텍스트(출처 머리말 + 본문). 채팅과 같은 형식을 쓰려고 company_chat의 것을 재사용한다."""
+    docs = [
+        Document(
+            text=r.text,
+            metadata={"corp_name": r.corp_name, "report_nm": r.report_nm, "section_title": r.section_title},
+            score=r.score,
+        )
+        for r in retrieved
+    ]
+    return [_build_context_text([doc]) for doc in docs]
+
+
 def score_item(item: Item, retrieved: list[Retrieved], answer: str) -> dict[str, float | int]:
-    unsupported = unsupported_numbers(answer, [r.text for r in retrieved], item.question)
+    unsupported = unsupported_numbers(answer, _seen_by_model(retrieved), item.question)
     if not item.answerable:
         return {"correct_refusal": int(is_refusal(answer)), "unsupported_numbers": unsupported}
     return {

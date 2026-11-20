@@ -25,12 +25,14 @@ RETURN count(n) AS chunks, max(n.`metadata.rcept_dt`) AS latest
 def to_retrieved(doc: Document) -> Retrieved:
     meta = doc.metadata
     return Retrieved(
-        rcept_no=str(meta.get("rcept_no")),
-        source_file=str(meta.get("source_file")),
-        section_order=int(meta.get("section_order")),
-        section_title=str(meta.get("section_title")),
+        rcept_no=meta.get("rcept_no"),
+        source_file=meta.get("source_file"),
+        section_order=meta.get("section_order"),
+        section_title=meta.get("section_title"),
         score=doc.score,
         text=doc.text,
+        corp_name=meta.get("corp_name"),
+        report_nm=meta.get("report_nm"),
     )
 
 

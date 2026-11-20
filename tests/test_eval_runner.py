@@ -146,3 +146,19 @@ def test_run_rejects_empty_dataset(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(cli.GraphDatabase, "driver", boom)
     assert cli.main(["run", "--dataset", str(path)]) == 1
     assert "정답셋이 비어 있습니다" in capsys.readouterr().out
+
+
+def test_run_item_tolerates_news_chunk_in_top_k():
+    news = Document(
+        text="삼성전자 뉴스 본문",
+        metadata={"doc_type": "NEWS", "article_url": "http://x", "section_title": None},
+        score=0.5,
+    )
+
+    class MixedChat(FakeChat):
+        def retrieve(self, question, corp_code, top_k, news_query=None):
+            return [news, _doc()]
+
+    row = run_item(MixedChat(), _item(), 6, "local", None)
+    assert row["error"] is None and row["metrics"]["hit_strict"] == 1
+    assert row["retrieved"][0]["section_order"] is None

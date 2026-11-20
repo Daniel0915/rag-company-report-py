@@ -125,3 +125,16 @@ def test_aggregate_by_type_groups_and_labels_unanswerable():
     assert set(s) == {"A", "I", "없음"}
     assert s["A"]["hit_strict"] == {"mean": 1.0, "n": 1}
     assert s["없음"]["correct_refusal"] == {"mean": 1.0, "n": 1}
+
+
+def test_retrieved_allows_news_chunk_without_section_fields():
+    r = Retrieved("1", None, None, None, None, "뉴스 본문")
+    assert r.section_order is None and r.key == ("1", None, None)
+    assert hit_strict([r], [_exp()]) == 0 and hit_loose([r], [_exp()]) == 0
+    assert mrr([r], [_exp()]) == 0.0
+
+
+def test_unsupported_numbers_ignores_numbers_in_cited_header():
+    r = Retrieved("R1", "R1.xml", 3, "4. 매출 및 수주상황", None, "매출액은 300조원", "삼성전자", "사업보고서 (2024.12)")
+    answer = "매출액은 300조원입니다. (근거: 사업보고서 (2024.12) > 4. 매출 및 수주상황)"
+    assert score_item(_item(), [r], answer)["unsupported_numbers"] == 0
