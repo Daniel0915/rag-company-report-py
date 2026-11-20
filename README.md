@@ -366,17 +366,27 @@ python -m app.eval compare eval/runs/A.json eval/runs/B.json
 **결과**: `eval/runs/<시각>_<provider>_k<topK>.json`에 저장되며 git에 올라가지 않습니다.
 터미널 요약표에는 지표별 값과 대상 문항 수가 전체와 공시 유형별로 나옵니다.
 `compare`는 지표 변화와 좋아지거나 나빠진 문항을 보여 주고, 두 실행의 정답셋이나 인덱스
-상태가 다르면 경고합니다.
+상태가 다르면 경고합니다. 지표표에는 실행별 분모(`n_A`, `n_B`)와, 값이 달라진 지표의
+좋아짐/나빠짐 표시가 붙습니다(`false_refusal`, `unsupported_numbers`는 낮을수록 좋고,
+`prompt_tokens`는 컨텍스트를 일부러 늘렸을 수 있어 표시하지 않습니다). 분모가 다르면 같은
+문항에 대한 비교가 아닐 수 있으니 확인하세요. `--judge claude`로 채점이 실패한 문항이 있으면
+실행 끝에 `채점 실패 N건`과 첫 오류가 출력됩니다.
+
+`generate`는 문항을 하나 만들 때마다 `eval/candidates.yaml`을 다시 쓰므로, 실행 중에는
+VS Code로 그 파일을 편집하지 마세요. `accept`와 `generate`는 파일을 새로 쓰기 때문에
+YAML 주석은 보존되지 않습니다.
 
 | 지표 | 뜻 |
 |---|---|
-| `hit@k` 엄격 / 느슨 | 검색 결과에 기대한 공시 섹션이 있는 비율. 느슨은 같은 제목의 다른 보고서 섹션도 인정 |
+| `hit_strict` / `hit_loose` | 상위 k개(`--top-k`) 검색 결과에 기대한 공시 섹션이 있는 비율(hit@k). loose는 같은 제목의 다른 보고서 섹션도 인정 |
 | `mrr` | 기대한 섹션이 검색 결과 앞쪽에 나올수록 높은 점수 |
 | `fact_recall` | 핵심 사실(숫자 등)이 답변에 들어 있는 비율 |
 | `false_refusal` | 답이 있는데 "모른다"고 한 비율. 낮을수록 좋음 |
 | `correct_refusal` | 답이 없는 질문에 "모른다"고 한 비율. 높을수록 좋음 |
-| `unsupported_numbers` | 답변 속 숫자 중 검색된 근거에 없는 숫자의 수(지어낸 숫자 신호) |
-| `prompt_tokens` | Ollama가 실제로 읽은 입력 토큰 수(local만) |
+| `unsupported_numbers` | 문항당 평균. 답변 속 숫자 중 모델이 본 근거(본문과 출처 머리말)와 질문에 없는 숫자의 수(지어낸 숫자 신호). 낮을수록 좋음 |
+| `prompt_tokens` | 문항당 평균. Ollama가 실제로 읽은 입력 토큰 수(local만) |
+| `faithfulness` | `--judge claude`일 때. 답변의 사실 주장 중 근거로 뒷받침되는 비율(0~1) |
+| `judge_correct` | `--judge claude`일 때. 답변이 기대 답과 일치하는(답 없는 질문은 적절히 거절한) 문항의 비율 |
 
 ## API 엔드포인트
 
