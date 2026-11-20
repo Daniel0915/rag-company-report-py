@@ -1,19 +1,31 @@
-"""`python -m app.eval` 명령줄: 정답셋 후보 승인(accept). 이후 generate, run, compare가 붙는다."""
+"""`python -m app.eval` 명령줄: accept, generate, run. 이후 compare가 붙는다."""
 
 from __future__ import annotations
 
 import argparse
+import functools
+import json
+from datetime import datetime
+from pathlib import Path
 
 from neo4j import GraphDatabase
 
 from app.config import get_settings
-from app.eval.dataset import DatasetError, accept
+from app.eval.dataset import DatasetError, accept, file_hash, load_items
 from app.eval.generate import DEFAULT_QUOTA, EVAL_CLAUDE_TIMEOUT_SECONDS, generate, parse_quota
+from app.eval.judge import judge
+from app.eval.runner import build_run_file, format_summary, git_commit, index_snapshot, run, run_file_name
 from app.llm.claude_cli import ClaudeCliClient
+from app.llm.gemini import GeminiClient
+from app.llm.ollama import OllamaClient
+from app.services.company_chat import CompanyChatService
+from app.services.disclosure_graph import DisclosureGraphService
+from app.vector.registry import CompanyVectorStoreRegistry
 from app.watchlist import find
 
 DEFAULT_CANDIDATES = "eval/candidates.yaml"
 DEFAULT_DATASET = "eval/dataset.yaml"
+DEFAULT_RUNS_DIR = "eval/runs"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,6 +42,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("--seed", type=int)
     p_gen.add_argument("--candidates", default=DEFAULT_CANDIDATES)
     p_gen.add_argument("--dataset", default=DEFAULT_DATASET)
+
+    p_run = sub.add_parser("run", help="정답셋을 실제 채팅 경로로 돌려 채점하고 결과 파일을 남긴다")
+    p_run.add_argument("--provider", choices=["local", "gemini", "claude"], default="local")
+    p_run.add_argument("--top-k", type=int, default=6)
+    p_run.add_argument("--judge", choices=["none", "claude"], default="none")
+    p_run.add_argument("--temperature", type=float, default=0)
+    p_run.add_argument("--seed", type=int, default=42)
+    p_run.add_argument("--dataset", default=DEFAULT_DATASET)
+    p_run.add_argument("--out-dir", default=DEFAULT_RUNS_DIR)
+    p_run.add_argument("--corp", help="이 기업의 문항만 돌린다")
     return parser
 
 
@@ -66,7 +88,76 @@ def _cmd_generate(args: argparse.Namespace) -> int:
     return 0
 
 
-_COMMANDS = {"accept": _cmd_accept, "generate": _cmd_generate}
+def _chat_model(settings, provider: str) -> str:
+    return {
+        "local": settings.ollama_chat_model,
+        "gemini": settings.gemini_model,
+        "claude": settings.claude_model,
+    }[provider]
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    items = load_items(args.dataset)
+    if args.corp:
+        items = [item for item in items if item.corp_code == args.corp]
+    if not items:
+        print("정답셋이 비어 있습니다")
+        return 1
+    if args.provider == "claude" and args.judge == "claude":
+        print("경고: 답변과 채점 모두 claude라 자기 답을 자기가 채점합니다")
+
+    settings = get_settings()
+    started = datetime.now()
+    ollama = OllamaClient(settings, options={"temperature": args.temperature, "seed": args.seed})
+    driver = GraphDatabase.driver(settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password))
+    try:
+        chat = CompanyChatService(
+            ollama,
+            GeminiClient(settings),
+            ClaudeCliClient(settings),
+            CompanyVectorStoreRegistry(driver, ollama, settings),
+            DisclosureGraphService(driver),
+        )
+        judge_fn = None
+        if args.judge == "claude":
+            judge_claude = ClaudeCliClient(settings.model_copy(update={"claude_timeout_seconds": EVAL_CLAUDE_TIMEOUT_SECONDS}))
+            judge_fn = functools.partial(judge, judge_claude)
+        index = index_snapshot(driver, {item.corp_code for item in items})
+        rows = run(
+            items,
+            chat,
+            args.top_k,
+            args.provider,
+            judge_fn,
+            on_progress=lambda n, total, item_id: print(f"[{n}/{total}] {item_id} ...", flush=True),
+        )
+    finally:
+        driver.close()
+        ollama.close()
+
+    config = {
+        "provider": args.provider,
+        "top_k": args.top_k,
+        "chat_model": _chat_model(settings, args.provider),
+        "embedding_model": settings.ollama_embedding_model,
+        "judge": args.judge,
+        "temperature": args.temperature,
+        "seed": args.seed,
+        "dataset_path": args.dataset,
+        "dataset_hash": file_hash(args.dataset),
+        "git_commit": git_commit(),
+        "started_at": started.isoformat(),
+    }
+    run_file = build_run_file(config, index, rows)
+    out_path = Path(args.out_dir) / run_file_name(started, args.provider, args.top_k)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(run_file, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"결과 파일: {out_path}")
+    print(format_summary(run_file))
+    return 0
+
+
+_COMMANDS = {"accept": _cmd_accept, "generate": _cmd_generate, "run": _cmd_run}
 
 
 def main(argv: list[str] | None = None) -> int:

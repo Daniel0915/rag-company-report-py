@@ -1,0 +1,139 @@
+"""평가 실행(`run`): 정답셋 문항을 실제 채팅 경로(검색 -> 답변)로 돌려 채점하고 결과 파일을 만든다."""
+
+from __future__ import annotations
+
+import subprocess
+from collections.abc import Callable
+from dataclasses import asdict
+from datetime import datetime
+
+from neo4j import Driver
+
+from app.eval.dataset import Item
+from app.eval.metrics import Retrieved, aggregate, aggregate_by_type, score_item
+from app.services.company_chat import CompanyChatService
+from app.vector.document import Document
+from app.vector.registry import label_for
+
+_SNAPSHOT_QUERY = """
+MATCH (n:`{label}`)
+WHERE n.`metadata.doc_type` IS NULL
+RETURN count(n) AS chunks, max(n.`metadata.rcept_dt`) AS latest
+"""
+
+
+def to_retrieved(doc: Document) -> Retrieved:
+    meta = doc.metadata
+    return Retrieved(
+        rcept_no=str(meta.get("rcept_no")),
+        source_file=str(meta.get("source_file")),
+        section_order=int(meta.get("section_order")),
+        section_title=str(meta.get("section_title")),
+        score=doc.score,
+        text=doc.text,
+    )
+
+
+def run_item(
+    chat: CompanyChatService, item: Item, top_k: int, provider: str, judge_fn: Callable | None
+) -> dict:
+    """문항 하나를 돌려 결과 행을 만든다. 어떤 예외든 error로 남기고 metrics는 None으로 둔다."""
+    row = {
+        "id": item.id,
+        "corp_code": item.corp_code,
+        "pblntf_ty": item.pblntf_ty,
+        "answerable": item.answerable,
+        "question": item.question,
+        "retrieved": [],
+        "answer": None,
+        "prompt_tokens": None,
+        "metrics": None,
+        "judge": None,
+        "error": None,
+    }
+    try:
+        docs = chat.retrieve(item.question, item.corp_code, top_k)
+        retrieved = [to_retrieved(d) for d in docs]
+        answer = chat.answer(item.question, item.corp_code, docs, provider)
+        row["retrieved"] = [
+            {
+                "rcept_no": r.rcept_no,
+                "source_file": r.source_file,
+                "section_order": r.section_order,
+                "section_title": r.section_title,
+                "score": r.score,
+            }
+            for r in retrieved
+        ]
+        row["answer"] = answer.text
+        row["prompt_tokens"] = answer.prompt_tokens
+        row["metrics"] = score_item(item, retrieved, answer.text)
+        result = judge_fn(item, retrieved, answer.text) if judge_fn else None
+        row["judge"] = asdict(result) if result else None
+    except Exception as exc:  # noqa: BLE001 - 한 문항의 실패가 전체 실행을 멈추지 않게 한다
+        row["metrics"] = None
+        row["error"] = f"{type(exc).__name__}: {exc}"
+    return row
+
+
+def index_snapshot(driver: Driver, corp_codes: set[str]) -> dict[str, dict]:
+    """기업마다 공시 청크 수와 가장 최근 접수일. 실행 시점의 인덱스 상태를 결과에 남기려는 것이다."""
+    snapshot: dict[str, dict] = {}
+    for corp_code in sorted(corp_codes):
+        with driver.session() as session:
+            record = list(session.run(_SNAPSHOT_QUERY.format(label=label_for(corp_code))))[0]
+        snapshot[corp_code] = {"chunks": record["chunks"], "latest_rcept_dt": record["latest"]}
+    return snapshot
+
+
+def run(
+    items: list[Item],
+    chat: CompanyChatService,
+    top_k: int,
+    provider: str,
+    judge_fn: Callable | None,
+    on_progress: Callable[[int, int, str], None] | None = None,
+) -> list[dict]:
+    rows = []
+    for number, item in enumerate(items, start=1):
+        if on_progress:
+            on_progress(number, len(items), item.id)
+        rows.append(run_item(chat, item, top_k, provider, judge_fn))
+    return rows
+
+
+def build_run_file(config: dict, index: dict, rows: list[dict]) -> dict:
+    return {
+        "config": config,
+        "index": index,
+        "items": rows,
+        "summary": {"overall": aggregate(rows), "by_type": aggregate_by_type(rows)},
+    }
+
+
+def run_file_name(started: datetime, provider: str, top_k: int) -> str:
+    return f"{started:%Y%m%d-%H%M%S}_{provider}_k{top_k}.json"
+
+
+def git_commit() -> str | None:
+    try:
+        out = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() or None
+
+
+def _table(metrics: dict[str, dict]) -> list[str]:
+    width = max((len(name) for name in metrics), default=4)
+    lines = [f"{'지표'.ljust(width)} | {'값':>8} | 분모"]
+    for name, stat in sorted(metrics.items()):
+        lines.append(f"{name.ljust(width)} | {stat['mean']:>8.3f} | {stat['n']}")
+    return lines
+
+
+def format_summary(run_file: dict) -> str:
+    summary = run_file["summary"]
+    lines = _table(summary["overall"])
+    for ty, metrics in sorted(summary["by_type"].items()):
+        lines += ["", f"[{ty}]", *_table(metrics)]
+    return "\n".join(lines)
