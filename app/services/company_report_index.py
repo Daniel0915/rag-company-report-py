@@ -10,12 +10,14 @@ Neo4j에 중복으로 쌓이지 않도록). 어떤 공시를 언제 돌릴지(�
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 import time
 from datetime import date
 
 from app.dart.client import DartApiClient
 from app.dart.dto import DisclosureItem
+from app.dart.errors import DartApiError
 from app.dart.xml_reader import DartXmlDocumentReader
 from app.ingest.ledger import IndexLedger
 from app.models import IndexResult
@@ -30,6 +32,10 @@ ALL_DISCLOSURE_TYPES = list("ABCDEFGHIJ")
 PAGE_SIZE = 100
 # opendart.fss.or.kr는 짧은 시간에 요청이 몰리면 커넥션을 끊는 방식으로 막는다 - 호출 사이에 쉬어간다.
 REQUEST_INTERVAL_SECONDS = 0.3
+# 목록에는 있지만 원문 파일을 API로 주지 않는 공시. 다시 받아도 결과가 같다.
+DOCUMENT_NOT_FOUND = "014"
+
+logger = logging.getLogger("app.ingest")
 
 _CORRECTION_PREFIX = re.compile(r"^\[[^\]]+\]\s*")
 
@@ -104,11 +110,21 @@ class CompanyReportIndexService:
         # 일부만 기록하면 재시도가 "이미 색인함"으로 건너뛰어 나머지 파일이 영영 빠진다.
         entries: list[tuple[str, str, list[str]]] = []
         produced_ids: list[str] = []
-        vector_store = self._registry.for_company(company.corp_code)
         try:
             files = self._dart.fetch_document(item.rcept_no)
+        except DartApiError as e:
+            if e.status != DOCUMENT_NOT_FOUND:
+                raise
+            # 실패로 두면 매주 같은 공시로 재시도·실패 알림이 반복되므로 원문 없음으로 기록한다.
+            logger.warning("원문 없음 %s %s %s: %s", company.name, item.rcept_no, item.report_nm, e)
+            self._ledger.mark_processed_without_files(item.rcept_no)
+            self._ledger.save()
+            return self._result(company, item, "empty", 0)
+        finally:
             time.sleep(REQUEST_INTERVAL_SECONDS)
 
+        vector_store = self._registry.for_company(company.corp_code)
+        try:
             xml_files = {n: b for n, b in files.items() if n.lower().endswith(".xml")}
             for source_file, xml_bytes in xml_files.items():
                 sections = DartXmlDocumentReader(xml_bytes, source_file).read()

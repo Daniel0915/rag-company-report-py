@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import pytest
 
 from app.dart.dto import DisclosureItem
+from app.dart.errors import DartApiError
 from app.ingest.ledger import IndexLedger
 from app.services import company_report_index as mod
 from app.services.company_report_index import (
@@ -153,3 +155,32 @@ def test_failure_midway_rolls_back_and_leaves_no_ledger_key(tmp_path):
     assert dart.fetched == ["R9", "R9"]
     assert result.status == "new"
     assert IndexLedger(path).has_rcept("R9")
+
+
+class MissingDocumentDart(FakeDart):
+    def __init__(self, status):
+        super().__init__()
+        self.status = status
+
+    def fetch_document(self, rcept_no):
+        self.fetched.append(rcept_no)
+        raise DartApiError(self.status, "파일이 존재하지 않습니다.")
+
+
+def test_missing_document_is_recorded_as_processed(tmp_path, caplog):
+    service, _, registry, _, ledger, path = _service(tmp_path)
+    service._dart = MissingDocumentDart("014")
+    with caplog.at_level(logging.WARNING, logger="app.ingest"):
+        result = service.index_disclosure(COMPANY, _item("R5"), "A")
+    assert result.status == "empty"
+    assert IndexLedger(path).has_rcept("R5")
+    assert registry.store.added == []
+    assert any("R5" in r.getMessage() and r.levelno == logging.WARNING for r in caplog.records)
+
+
+def test_other_dart_errors_still_fail(tmp_path):
+    service, _, _, _, ledger, _ = _service(tmp_path)
+    service._dart = MissingDocumentDart("020")
+    with pytest.raises(DartApiError):
+        service.index_disclosure(COMPANY, _item("R6"), "A")
+    assert not ledger.has_rcept("R6")
