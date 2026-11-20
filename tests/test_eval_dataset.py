@@ -141,3 +141,22 @@ def test_file_hash_changes_with_content_and_section_keys_cover_both_files(tmp_pa
 
     assert file_hash(a) != before
     assert existing_section_keys(a, b) == {("20240312000736", "main.xml", 2), ("20240312000736", "main.xml", 3)}
+
+
+def test_malformed_yaml_becomes_dataset_error(tmp_path, capsys):
+    path = tmp_path / "dataset.yaml"
+    path.write_text("- 1\n", encoding="utf-8")
+    with pytest.raises(DatasetError):
+        load_items(path)
+
+    path.write_text(
+        "- id: q0001\n  corp_code: '00126380'\n  question: q\n  answerable: true\n  origin: manual\n"
+        "  must_include: [a]\n  expected_sections:\n    - rcept_no: '1'\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(DatasetError, match="q0001"):
+        load_items(path)
+
+    cands = tmp_path / "candidates.yaml"
+    assert main(["accept", "--candidates", str(cands), "--dataset", str(path)]) == 1
+    assert "오류" in capsys.readouterr().out

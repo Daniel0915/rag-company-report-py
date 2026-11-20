@@ -60,19 +60,21 @@ def _read_entries(path: Path) -> list[dict]:
     return data
 
 
-def _parse(entry: dict, cls: type[Item]) -> Item:
+def _parse(entry: object, cls: type[Item]) -> Item:
+    if not isinstance(entry, dict):
+        raise DatasetError(f"문항은 키-값 목록이어야 합니다 ({entry!r})")
     item_id = entry.get("id")
     if not isinstance(entry.get("corp_code"), str):
         raise DatasetError(f"{item_id}: corp_code를 따옴표로 감싸세요 (숫자로 읽히면 앞자리 0이 사라집니다)")
     unknown = set(entry) - {f.name for f in fields(cls)}
     if unknown:
         raise DatasetError(f"{item_id}: 알 수 없는 필드 {sorted(unknown)}")
-    kwargs = dict(entry)
-    kwargs["expected_sections"] = [Section(**s) for s in entry.get("expected_sections") or []]
     try:
+        kwargs = dict(entry)
+        kwargs["expected_sections"] = [Section(**s) for s in entry.get("expected_sections") or []]
         return cls(**kwargs)
     except TypeError as exc:
-        raise DatasetError(f"{item_id}: {exc}") from exc
+        raise DatasetError(f"{item_id}: 필드가 올바르지 않습니다 ({exc})") from exc
 
 
 def _validate(items: list[Item]) -> None:
