@@ -61,6 +61,8 @@ def _cmd_generate(args: argparse.Namespace) -> int:
         if ty != "A" and picked.get(ty, 0) < want:
             print(f"{ty}: 할당 {want}, 뽑음 {picked.get(ty, 0)} (부족분 A에서 채움)")
     print(f"추가 {result['added']}, 파싱 실패 {result['parse_failed']}, 호출 실패 {result['call_failed']}")
+    if result["call_failed"]:
+        print(f"첫 호출 오류: {result['first_error']}")
     return 0
 
 

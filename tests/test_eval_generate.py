@@ -104,7 +104,7 @@ def test_generate_appends_candidates_and_counts_failures(tmp_path, monkeypatch):
     claude = _FakeClaude([good, "깨진 응답", RuntimeError("timeout")])
     cands = tmp_path / "c.yaml"
     result = gen.generate(None, claude, "00126380", {"A": 3}, 1, cands, tmp_path / "d.yaml")
-    assert result == {"picked": {"A": 3}, "added": 1, "parse_failed": 1, "call_failed": 1}
+    assert result == {"picked": {"A": 3}, "added": 1, "parse_failed": 1, "call_failed": 1, "first_error": "RuntimeError: timeout"}
     saved = load_candidates(cands)
     assert [c.id for c in saved] == ["c0001"]
     assert saved[0].pblntf_ty == "A" and saved[0].review == "pending"
@@ -117,6 +117,24 @@ def test_generate_appends_candidates_and_counts_failures(tmp_path, monkeypatch):
     result = gen.generate(None, claude, "00126380", {"A": 2}, 1, cands, tmp_path / "d.yaml")
     assert result["added"] == 2
     assert [c.id for c in load_candidates(cands)] == ["c0001", "c0002", "c0003"]
+
+
+def test_cli_generate_prints_first_call_error(tmp_path, monkeypatch, capsys):
+    from app.eval import cli
+
+    class _Driver:
+        def close(self):
+            pass
+
+    rows = _rows("A", 2)
+    monkeypatch.setattr(gen, "fetch_chunk_rows", lambda driver, corp: rows)
+    monkeypatch.setattr(gen, "fetch_texts", lambda driver, corp, ids: {i: "본문" for i in ids})
+    monkeypatch.setattr(cli.GraphDatabase, "driver", lambda *a, **k: _Driver())
+    monkeypatch.setattr(cli, "ClaudeCliClient", lambda settings: _FakeClaude([RuntimeError("로그인 필요")] * 2))
+    code = main(["generate", "--corp", "00126380", "--quota", "A=2",
+                 "--candidates", str(tmp_path / "c.yaml"), "--dataset", str(tmp_path / "d.yaml")])
+    assert code == 0
+    assert "첫 호출 오류: RuntimeError: 로그인 필요" in capsys.readouterr().out
 
 
 def test_cli_generate_rejects_unknown_corp_before_connecting(capsys):

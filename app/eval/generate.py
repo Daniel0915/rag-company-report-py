@@ -172,12 +172,15 @@ def generate(
     candidates = load_candidates(candidates_path)
     number = _next_candidate_number(candidates)
     added = parse_failed = call_failed = 0
+    first_error: str | None = None
     for row in picked:
         text = texts[row.chunk_id]
         try:
             raw = claude.generate(_SYSTEM_PROMPT, build_generation_prompt(text, row.section.section_title, row.report_nm))
-        except Exception:
+        except Exception as exc:
             call_failed += 1
+            if first_error is None:
+                first_error = f"{type(exc).__name__}: {exc}"
             continue
         data = parse_generation(raw)
         if data is None:
@@ -201,4 +204,4 @@ def generate(
         number += 1
         added += 1
         save_candidates(candidates_path, candidates)  # 긴 실행이 중간에 끊겨도 만든 것은 남긴다
-    return {"picked": counts, "added": added, "parse_failed": parse_failed, "call_failed": call_failed}
+    return {"picked": counts, "added": added, "parse_failed": parse_failed, "call_failed": call_failed, "first_error": first_error}
