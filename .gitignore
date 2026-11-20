@@ -7,3 +7,4 @@ data/admin-uploads/
 .pytest_cache/
 logs/
 data/ingest.lock
+eval/runs/
