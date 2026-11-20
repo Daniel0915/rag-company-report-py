@@ -312,6 +312,72 @@ docker stop company-report-neo4j && docker rm company-report-neo4j
 - 상태 파일: `data/ingest-state.json`, 실행 잠금: `data/ingest.lock`, 색인 장부: `data/company-report-index.json`
 - 현재 상태(마지막 실행 시각, 마지막 성공일, 재시도 대기 건수, 재시도 중단 목록): `python -m app.ingest status`
 
+### 5) 답변 평가
+
+정답셋으로 검색과 답변의 품질을 재고, 설정이나 프롬프트를 바꾼 전후를 비교합니다.
+`python -m app.eval` CLI를 쓰며 FastAPI 서버는 필요 없습니다.
+
+**필요 조건**: Neo4j와 Ollama가 켜져 있어야 하고, 문항 생성과 `--judge claude`에는
+로그인된 `claude` CLI가 필요합니다. API 키는 쓰지 않습니다.
+
+```bash
+source .venv/bin/activate
+
+# 1. 후보 문항 생성 (기본 30문항). 결과는 eval/candidates.yaml에 추가됩니다.
+python -m app.eval generate --corp 00126380
+
+# 2. VS Code에서 eval/candidates.yaml을 검수합니다.
+#    문항을 고치고, 쓸 문항은 review: ok, 버릴 문항은 review: drop으로 바꿉니다.
+
+# 3. 검수한 문항을 정답셋(eval/dataset.yaml)으로 옮깁니다. drop은 버립니다.
+python -m app.eval accept
+
+# 4. 평가 실행
+python -m app.eval run --provider local --top-k 6
+
+# 5. 두 실행 비교
+python -m app.eval compare eval/runs/A.json eval/runs/B.json
+```
+
+**문항 생성**: 유형별 기본 할당은 정기공시 A 12, 거래소공시 I 8, 주요사항 B 5, 지분공시 D 3,
+기타 J 1·E 1입니다. `--quota A=6,I=4`처럼 쓰면 지정한 유형만 그 개수로 뽑습니다.
+`--seed`로 무작위 선택을 재현할 수 있습니다. 워치리스트에 있는 기업만 지정할 수 있고,
+이미 정답셋이나 후보에 있는 섹션은 피해서 뽑습니다.
+
+**답이 없는 질문**은 자동으로 만들 수 없어 `eval/dataset.yaml`에 직접 씁니다. 5~10개를
+권장합니다. `corp_code`는 반드시 따옴표로 감쌉니다. 따옴표가 없으면 숫자로 읽혀
+앞의 0이 사라지므로 거부됩니다.
+
+```yaml
+- id: m0001
+  corp_code: "00126380"
+  question: 삼성전자의 2030년 예상 배당금은?
+  answerable: false
+  origin: manual
+```
+
+**실행 옵션**: `--provider`는 `local`(기본), `gemini`, `claude`입니다. `--corp CODE`는 그 기업의
+문항만 돌립니다. Ollama는 결과가 흔들리지 않도록 기본으로 temperature 0, seed 42로 호출하며
+`--temperature`, `--seed`로 바꿀 수 있습니다. 쓴 값은 결과 파일에 남고, 채팅 API의 호출에는
+영향이 없습니다. Gemini와 Claude는 seed를 고정할 수 없어 비교 결과가 조금 흔들립니다.
+`--judge claude`는 Claude가 답변의 근거 충실도와 정확성을 추가로 채점하는 옵션입니다(기본은
+규칙 채점만). 답변 provider도 `claude`이면 자기 답을 자기가 채점한다는 경고가 나옵니다.
+
+**결과**: `eval/runs/<시각>_<provider>_k<topK>.json`에 저장되며 git에 올라가지 않습니다.
+터미널 요약표에는 지표별 값과 대상 문항 수가 전체와 공시 유형별로 나옵니다.
+`compare`는 지표 변화와 좋아지거나 나빠진 문항을 보여 주고, 두 실행의 정답셋이나 인덱스
+상태가 다르면 경고합니다.
+
+| 지표 | 뜻 |
+|---|---|
+| `hit@k` 엄격 / 느슨 | 검색 결과에 기대한 공시 섹션이 있는 비율. 느슨은 같은 제목의 다른 보고서 섹션도 인정 |
+| `mrr` | 기대한 섹션이 검색 결과 앞쪽에 나올수록 높은 점수 |
+| `fact_recall` | 핵심 사실(숫자 등)이 답변에 들어 있는 비율 |
+| `false_refusal` | 답이 있는데 "모른다"고 한 비율. 낮을수록 좋음 |
+| `correct_refusal` | 답이 없는 질문에 "모른다"고 한 비율. 높을수록 좋음 |
+| `unsupported_numbers` | 답변 속 숫자 중 검색된 근거에 없는 숫자의 수(지어낸 숫자 신호) |
+| `prompt_tokens` | Ollama가 실제로 읽은 입력 토큰 수(local만) |
+
 ## API 엔드포인트
 
 | Method | Path | 설명 |
