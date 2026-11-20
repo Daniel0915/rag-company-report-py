@@ -66,3 +66,26 @@ def test_judge_returns_result():
 
 def test_judge_returns_none_on_non_runtime_error():
     assert judge(_Fake(PermissionError("not executable")), _item(), _retrieved(), "a") is None
+
+
+def test_judge_prompt_defines_correct_and_faithfulness_per_spec():
+    p = build_judge_prompt(_item(), _retrieved(), "300조입니다")
+    assert "기대 답과 의미가 일치" in p
+    assert "주장 중" in p and "비율" in p and "1.0" in p
+
+
+def test_judge_prompt_for_unanswerable_defines_correct_as_refusal():
+    p = build_judge_prompt(_item(False), _retrieved(), "모릅니다")
+    assert "적절히 거절" in p and "true" in p
+
+
+def test_judge_reports_call_error_via_callback():
+    errors = []
+    assert judge(_Fake(RuntimeError("login expired")), _item(), _retrieved(), "a", on_error=errors.append) is None
+    assert errors == ["RuntimeError: login expired"]
+
+
+def test_judge_reports_parse_failure_via_callback():
+    errors = []
+    assert judge(_Fake("not json"), _item(), _retrieved(), "a", on_error=errors.append) is None
+    assert len(errors) == 1 and "파싱" in errors[0]

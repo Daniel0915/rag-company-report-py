@@ -101,6 +101,14 @@ def _chat_model(settings, provider: str) -> str:
     }[provider]
 
 
+def judge_failure_lines(rows: list[dict], first_error: str | None) -> list[str]:
+    """채점까지 도달했는데(metrics가 있는데) judge가 비어 있는 행 수와 첫 오류. 실패가 없으면 빈 목록."""
+    failed = sum(1 for row in rows if row.get("metrics") is not None and row.get("judge") is None)
+    if not failed:
+        return []
+    return [f"채점 실패 {failed}건", f"첫 채점 오류: {first_error}"]
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     items = load_items(args.dataset)
     if args.corp:
@@ -124,9 +132,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
             DisclosureGraphService(driver),
         )
         judge_fn = None
+        judge_errors: list[str] = []
         if args.judge == "claude":
             judge_claude = ClaudeCliClient(settings.model_copy(update={"claude_timeout_seconds": EVAL_CLAUDE_TIMEOUT_SECONDS}))
-            judge_fn = functools.partial(judge, judge_claude)
+            judge_fn = functools.partial(judge, judge_claude, on_error=judge_errors.append)
         index = index_snapshot(driver, {item.corp_code for item in items})
         rows = run(
             items,
@@ -159,6 +168,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
     out_path.write_text(json.dumps(run_file, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"결과 파일: {out_path}")
     print(format_summary(run_file))
+    if args.judge == "claude":
+        for line in judge_failure_lines(rows, judge_errors[0] if judge_errors else None):
+            print(line)
     return 0
 
 

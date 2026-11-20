@@ -162,3 +162,13 @@ def test_run_item_tolerates_news_chunk_in_top_k():
     row = run_item(MixedChat(), _item(), 6, "local", None)
     assert row["error"] is None and row["metrics"]["hit_strict"] == 1
     assert row["retrieved"][0]["section_order"] is None
+
+
+def test_judge_failure_lines_count_unjudged_rows_and_show_first_error():
+    rows = [
+        {"metrics": {"hit_strict": 1}, "judge": None},
+        {"metrics": {"hit_strict": 1}, "judge": {"faithfulness": 1.0, "correct": True, "reason": ""}},
+        {"metrics": None, "judge": None, "error": "TimeoutError: x"},
+    ]
+    assert cli.judge_failure_lines(rows, "RuntimeError: login") == ["채점 실패 1건", "첫 채점 오류: RuntimeError: login"]
+    assert cli.judge_failure_lines(rows[1:2], None) == []
