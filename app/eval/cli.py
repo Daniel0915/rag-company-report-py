@@ -1,4 +1,4 @@
-"""`python -m app.eval` 명령줄: accept, generate, run. 이후 compare가 붙는다."""
+"""`python -m app.eval` 명령줄: accept, generate, run, compare."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path
 from neo4j import GraphDatabase
 
 from app.config import get_settings
+from app.eval.compare import compare, format_comparison
 from app.eval.dataset import DatasetError, accept, file_hash, load_items
 from app.eval.generate import DEFAULT_QUOTA, EVAL_CLAUDE_TIMEOUT_SECONDS, generate, parse_quota
 from app.eval.judge import judge
@@ -52,6 +53,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--dataset", default=DEFAULT_DATASET)
     p_run.add_argument("--out-dir", default=DEFAULT_RUNS_DIR)
     p_run.add_argument("--corp", help="이 기업의 문항만 돌린다")
+
+    p_cmp = sub.add_parser("compare", help="두 결과 파일의 지표와 문항별 변화를 비교한다")
+    p_cmp.add_argument("run_a")
+    p_cmp.add_argument("run_b")
     return parser
 
 
@@ -157,7 +162,23 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
-_COMMANDS = {"accept": _cmd_accept, "generate": _cmd_generate, "run": _cmd_run}
+def _load_run_file(path: str) -> dict:
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        data["config"], data["summary"]["overall"], data["items"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise DatasetError(f"결과 파일을 읽을 수 없습니다 ({path}): {exc}") from exc
+    return data
+
+
+def _cmd_compare(args: argparse.Namespace) -> int:
+    a = _load_run_file(args.run_a)
+    b = _load_run_file(args.run_b)
+    print(format_comparison(compare(a, b)))
+    return 0
+
+
+_COMMANDS = {"accept": _cmd_accept, "generate": _cmd_generate, "run": _cmd_run, "compare": _cmd_compare}
 
 
 def main(argv: list[str] | None = None) -> int:
