@@ -13,9 +13,24 @@ class Change:
     after: object
 
 
+# 지표별로 클수록 좋은가. 여기 없는 지표(prompt_tokens)는 방향을 매기지 않는다(컨텍스트를 늘렸을 수 있다).
+HIGHER_IS_BETTER: dict[str, bool] = {
+    "hit_strict": True,
+    "hit_loose": True,
+    "mrr": True,
+    "fact_recall": True,
+    "correct_refusal": True,
+    "faithfulness": True,
+    "judge_correct": True,
+    "false_refusal": False,
+    "unsupported_numbers": False,
+}
+
+
 @dataclass
 class Comparison:
     metric_deltas: dict[str, tuple[float | None, float | None]]
+    metric_counts: dict[str, tuple[int | None, int | None]]
     improved: list[Change]
     regressed: list[Change]
     dataset_changed: bool
@@ -69,6 +84,13 @@ def compare(a: dict, b: dict) -> Comparison:
         )
         for name in sorted(overall_a.keys() | overall_b.keys())
     }
+    metric_counts = {
+        name: (
+            overall_a[name]["n"] if name in overall_a else None,
+            overall_b[name]["n"] if name in overall_b else None,
+        )
+        for name in metric_deltas
+    }
     rows_a = {row["id"]: row for row in a["items"]}
     rows_b = {row["id"]: row for row in b["items"]}
     improved: list[Change] = []
@@ -84,6 +106,7 @@ def compare(a: dict, b: dict) -> Comparison:
     }
     return Comparison(
         metric_deltas=metric_deltas,
+        metric_counts=metric_counts,
         improved=improved,
         regressed=regressed,
         dataset_changed=a["config"].get("dataset_hash") != b["config"].get("dataset_hash"),
@@ -95,6 +118,16 @@ def compare(a: dict, b: dict) -> Comparison:
 
 def _fmt(value: float | None) -> str:
     return "-" if value is None else f"{value:.3f}"
+
+
+def _verdict(name: str, before: float | None, after: float | None) -> str:
+    if before is None or after is None or before == after or name not in HIGHER_IS_BETTER:
+        return ""
+    return "좋아짐" if (after > before) == HIGHER_IS_BETTER[name] else "나빠짐"
+
+
+def _fmt_n(n: int | None) -> str:
+    return "-" if n is None else str(n)
 
 
 def _fmt_index(state: dict | None) -> str:
@@ -120,10 +153,14 @@ def format_comparison(c: Comparison) -> str:
     if lines:
         lines.append("")
     width = max((len(name) for name in c.metric_deltas), default=4)
-    lines.append(f"{'지표'.ljust(width)} | {'A':>8} | {'B':>8} | {'차이':>8}")
+    lines.append(f"{'지표'.ljust(width)} | {'A':>8} | {'B':>8} | {'차이':>8} | {'n_A':>4} | {'n_B':>4} | 판정")
     for name, (before, after) in c.metric_deltas.items():
         diff = "-" if before is None or after is None else f"{after - before:+.3f}"
-        lines.append(f"{name.ljust(width)} | {_fmt(before):>8} | {_fmt(after):>8} | {diff:>8}")
+        n_a, n_b = (_fmt_n(n) for n in c.metric_counts[name])
+        lines.append(
+            f"{name.ljust(width)} | {_fmt(before):>8} | {_fmt(after):>8} | {diff:>8} | {n_a:>4} | {n_b:>4} | "
+            f"{_verdict(name, before, after)}".rstrip()
+        )
     lines += _fmt_changes("나빠진 문항", c.regressed)
     lines += _fmt_changes("좋아진 문항", c.improved)
     if c.only_in_a:

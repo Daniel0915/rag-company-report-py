@@ -99,3 +99,21 @@ def test_cli_compare_bad_files(tmp_path, capsys):
     assert main(["compare", str(tmp_path / "none.json"), str(bad)]) == 1
     assert main(["compare", str(bad), str(bad)]) == 1
     assert capsys.readouterr().out.count("오류") == 2
+
+
+def test_format_shows_n_and_direction_markers():
+    a = _run([], overall={
+        "hit_strict": {"mean": 0.5, "n": 20}, "false_refusal": {"mean": 0.1, "n": 20},
+        "prompt_tokens": {"mean": 2000.0, "n": 20}, "mrr": {"mean": 0.4, "n": 20},
+    })
+    b = _run([], overall={
+        "hit_strict": {"mean": 0.6, "n": 18}, "false_refusal": {"mean": 0.2, "n": 18},
+        "prompt_tokens": {"mean": 2500.0, "n": 18}, "mrr": {"mean": 0.4, "n": 18},
+    })
+    lines = {line.split("|")[0].strip(): line for line in format_comparison(compare(a, b)).splitlines() if "|" in line}
+    assert "n_A" in lines["지표"] and "n_B" in lines["지표"]
+    assert "20" in lines["hit_strict"] and "18" in lines["hit_strict"]
+    assert "좋아짐" in lines["hit_strict"]
+    assert "나빠짐" in lines["false_refusal"]
+    assert "좋아짐" not in lines["prompt_tokens"] and "나빠짐" not in lines["prompt_tokens"]
+    assert "좋아짐" not in lines["mrr"] and "나빠짐" not in lines["mrr"]
