@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 
 from app.llm.claude_cli import ClaudeCliClient
 from app.llm.gemini import GeminiClient
@@ -92,6 +93,13 @@ VECTOR_CYPHER_LIMIT = 30
 CODE_FENCE = re.compile(r"```(?:cypher)?", re.DOTALL)
 
 
+@dataclass(frozen=True)
+class Answer:
+    text: str
+    # provider가 local(Ollama)일 때만 채워지는 입력 토큰 수.
+    prompt_tokens: int | None
+
+
 class CompanyChatService:
     def __init__(
         self,
@@ -121,26 +129,8 @@ class CompanyChatService:
         llm = _normalize_provider(provider)
 
         search_query = self._rewrite_query(question, history, llm) if history else question
-
-        news_only = bool(NEWS_KEYWORD.search(question))
-        # 메타데이터 필터는 ANN 검색 이후 후보군(topK개)에 대한 WHERE절로 적용된다 -
-        # topK를 그대로 쓰면 상위 후보에 NEWS 청크가 하나도 안 걸려 필터링 후 0건이 되기 쉽다.
-        # 필터가 걸릴 땐 후보군을 넉넉히 가져온 뒤 잘라낸다.
-        ann_top_k = max(top_k, NEWS_FILTER_CANDIDATE_POOL) if news_only else top_k
-
-        context = self._registry.for_company(corp_code).similarity_search(
-            query=search_query,
-            top_k=ann_top_k,
-            metadata_filter={"doc_type": "NEWS"} if news_only else None,
-        )
-        if news_only and len(context) > top_k:
-            context = context[:top_k]
-
-        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-            context=_build_context_text(context),
-            graph=self._build_graph_text(corp_code, search_query, llm, context),
-        )
-        answer = self._complete(llm, system_prompt, question)
+        context = self.retrieve(search_query, corp_code, top_k, news_query=question)
+        answer = self.answer(question, corp_code, context, provider, search_query=search_query)
 
         sources = [
             SourceItem(
@@ -152,7 +142,48 @@ class CompanyChatService:
             )
             for d in context
         ]
-        return ChatResponse(answer=answer, sources=sources)
+        return ChatResponse(answer=answer.text, sources=sources)
+
+    def retrieve(
+        self, question: str, corp_code: str, top_k: int, news_query: str | None = None
+    ) -> list[Document]:
+        """
+        벡터 검색 단계. 임베딩은 question으로, 뉴스 키워드 판정은 news_query(없으면 question)로 한다 -
+        chat()은 재작성된 질문으로 검색하되 뉴스 여부는 사용자가 쓴 원래 질문으로 판정하기 때문이다.
+        """
+        news_only = bool(NEWS_KEYWORD.search(news_query if news_query is not None else question))
+        # 메타데이터 필터는 ANN 검색 이후 후보군(topK개)에 대한 WHERE절로 적용된다 -
+        # topK를 그대로 쓰면 상위 후보에 NEWS 청크가 하나도 안 걸려 필터링 후 0건이 되기 쉽다.
+        # 필터가 걸릴 땐 후보군을 넉넉히 가져온 뒤 잘라낸다.
+        ann_top_k = max(top_k, NEWS_FILTER_CANDIDATE_POOL) if news_only else top_k
+
+        context = self._registry.for_company(corp_code).similarity_search(
+            query=question,
+            top_k=ann_top_k,
+            metadata_filter={"doc_type": "NEWS"} if news_only else None,
+        )
+        if news_only and len(context) > top_k:
+            context = context[:top_k]
+        return context
+
+    def answer(
+        self,
+        question: str,
+        corp_code: str,
+        context: list[Document],
+        provider: str | None,
+        search_query: str | None = None,
+    ) -> Answer:
+        """답변 단계: 그래프 보강, 시스템 프롬프트 조립, provider 호출. local이면 입력 토큰 수도 채운다."""
+        llm = _normalize_provider(provider)
+        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+            context=_build_context_text(context),
+            graph=self._build_graph_text(corp_code, search_query or question, llm, context),
+        )
+        if llm == "local":
+            reply = self._ollama.chat(system_prompt, question)
+            return Answer(text=reply.content, prompt_tokens=reply.prompt_eval_count)
+        return Answer(text=self._complete(llm, system_prompt, question), prompt_tokens=None)
 
     def _rewrite_query(self, question: str, history: list[ChatTurnDto], llm: str) -> str:
         history_text = "\n".join(
