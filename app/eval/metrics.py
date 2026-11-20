@@ -31,6 +31,10 @@ class Retrieved:
     score: float | None
     text: str
 
+    def __post_init__(self) -> None:
+        # Neo4j 메타데이터가 문자열로 줄 수 있어 정수로 맞춘다.
+        object.__setattr__(self, "section_order", int(self.section_order))
+
     @property
     def key(self) -> tuple[str, str, int]:
         return (self.rcept_no, self.source_file, self.section_order)
@@ -78,9 +82,10 @@ def extract_numbers(text: str) -> set[str]:
 
 def unsupported_numbers(answer: str, context_texts: list[str], question: str) -> int:
     """답변 숫자 중 근거에도 질문에도 없는 것의 개수."""
-    supported = extract_numbers(question)
-    for text in context_texts:
-        supported |= extract_numbers(text)
+    supported: set[str] = set()
+    for text in [question, *context_texts]:
+        # 2024.12.31 같은 날짜 안의 연도도 근거로 인정하려고 숫자 덩어리도 함께 담는다.
+        supported |= extract_numbers(text) | set(re.findall(r"\d+", text.replace(",", "")))
     return len(extract_numbers(answer) - supported)
 
 

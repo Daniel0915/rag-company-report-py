@@ -60,6 +60,18 @@ def test_unsupported_numbers_ignores_single_digits_and_question_numbers():
     assert unsupported_numbers(answer, ctx, "2024년 매출은?") == 1
 
 
+def test_unsupported_numbers_accepts_year_inside_dotted_date():
+    ctx = ["기준일 2024.12.31 매출 100억"]
+    assert unsupported_numbers("2024년 매출 100억", ctx, "매출은?") == 0
+
+
+def test_retrieved_coerces_section_order_to_int():
+    r = Retrieved("R1", "R1.xml", "3", "1. 사업의 개요", None, "")
+    assert r.section_order == 3
+    assert hit_strict([r], [_exp()]) == 1
+    assert mrr([r], [_exp()]) == 1.0
+
+
 def _item(answerable=True):
     return Item(
         id="q1", corp_code="00126380", question="매출은?", answerable=answerable,
