@@ -37,7 +37,7 @@ def to_retrieved(doc: Document) -> Retrieved:
 def run_item(
     chat: CompanyChatService, item: Item, top_k: int, provider: str, judge_fn: Callable | None
 ) -> dict:
-    """문항 하나를 돌려 결과 행을 만든다. 어떤 예외든 error로 남기고 metrics는 None으로 둔다."""
+    """문항 하나를 돌려 결과 행을 만든다. 어떤 예외든 error와 error_stage(retrieve|answer|score)로 남기고 metrics는 None으로 둔다."""
     row = {
         "id": item.id,
         "corp_code": item.corp_code,
@@ -50,11 +50,12 @@ def run_item(
         "metrics": None,
         "judge": None,
         "error": None,
+        "error_stage": None,
     }
+    stage = "retrieve"
     try:
         docs = chat.retrieve(item.question, item.corp_code, top_k)
         retrieved = [to_retrieved(d) for d in docs]
-        answer = chat.answer(item.question, item.corp_code, docs, provider)
         row["retrieved"] = [
             {
                 "rcept_no": r.rcept_no,
@@ -65,14 +66,18 @@ def run_item(
             }
             for r in retrieved
         ]
+        stage = "answer"
+        answer = chat.answer(item.question, item.corp_code, docs, provider)
         row["answer"] = answer.text
         row["prompt_tokens"] = answer.prompt_tokens
+        stage = "score"
         row["metrics"] = score_item(item, retrieved, answer.text)
         result = judge_fn(item, retrieved, answer.text) if judge_fn else None
         row["judge"] = asdict(result) if result else None
     except Exception as exc:  # noqa: BLE001 - 한 문항의 실패가 전체 실행을 멈추지 않게 한다
         row["metrics"] = None
         row["error"] = f"{type(exc).__name__}: {exc}"
+        row["error_stage"] = stage
     return row
 
 

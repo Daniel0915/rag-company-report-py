@@ -79,6 +79,24 @@ def test_errored_item_is_excluded_from_denominators():
     assert build_run_file({}, {}, rows)["summary"]["overall"]["hit_strict"]["n"] == 1
 
 
+def test_answer_failure_keeps_retrieved_and_marks_stage():
+    class AnswerTimeout(FakeChat):
+        def answer(self, *a, **k):
+            raise TimeoutError("생성 지연")
+
+    row = run_item(AnswerTimeout(), _item(), 6, "local", None)
+    assert row["retrieved"] and row["error_stage"] == "answer" and row["metrics"] is None
+
+
+def test_retrieve_failure_marks_stage_with_empty_retrieved():
+    row = run_item(FakeChat(fail_ids={"매출액은?"}), _item(), 6, "local", None)
+    assert row["retrieved"] == [] and row["error_stage"] == "retrieve" and row["metrics"] is None
+
+
+def test_successful_item_has_no_error_stage():
+    assert run_item(FakeChat(), _item(), 6, "local", None)["error_stage"] is None
+
+
 def test_run_reports_progress():
     calls = []
     run([_item(), _item("q2")], FakeChat(), 6, "local", None, on_progress=lambda i, n, id: calls.append((i, n, id)))
