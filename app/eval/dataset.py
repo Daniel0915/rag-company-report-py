@@ -25,6 +25,10 @@ class Section:
     section_order: int
     section_title: str
 
+    def __post_init__(self) -> None:
+        # YAML에서 따옴표로 감싼 숫자("12")도 정수로 비교되게 맞춘다. 정수로 못 바꾸면 ValueError.
+        object.__setattr__(self, "section_order", int(self.section_order))
+
     @property
     def key(self) -> tuple[str, str, int]:
         return (self.rcept_no, self.source_file, self.section_order)
@@ -69,11 +73,14 @@ def _parse(entry: object, cls: type[Item]) -> Item:
     unknown = set(entry) - {f.name for f in fields(cls)}
     if unknown:
         raise DatasetError(f"{item_id}: 알 수 없는 필드 {sorted(unknown)}")
+    for name in ("must_include", "expected_sections"):
+        if entry.get(name) is not None and not isinstance(entry[name], list):
+            raise DatasetError(f"{item_id}: {name}는 목록이어야 합니다 ({entry[name]!r})")
     try:
         kwargs = dict(entry)
         kwargs["expected_sections"] = [Section(**s) for s in entry.get("expected_sections") or []]
         return cls(**kwargs)
-    except TypeError as exc:
+    except (TypeError, ValueError) as exc:
         raise DatasetError(f"{item_id}: 필드가 올바르지 않습니다 ({exc})") from exc
 
 
@@ -106,9 +113,24 @@ def load_candidates(path: str | Path) -> list[Candidate]:
     return _load(path, Candidate)  # type: ignore[return-value]
 
 
+def _represent_str(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
+    """여러 줄 문자열은 사람이 읽기 좋게 블록(|) 스타일로 쓴다. 줄 끝 공백이 있으면 PyYAML이 블록을 못 써서 먼저 뗀다."""
+    if "\n" in data:
+        data = "\n".join(line.rstrip() for line in data.split("\n"))
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+class _BlockDumper(yaml.SafeDumper):
+    pass
+
+
+_BlockDumper.add_representer(str, _represent_str)
+
+
 def _dump(path: str | Path, items: list[Item]) -> None:
     entries = [{k: v for k, v in asdict(item).items() if v is not None and v != []} for item in items]
-    text = yaml.safe_dump(entries, allow_unicode=True, sort_keys=False)
+    text = yaml.dump(entries, Dumper=_BlockDumper, allow_unicode=True, sort_keys=False)
     Path(path).write_text(text, encoding="utf-8")
 
 

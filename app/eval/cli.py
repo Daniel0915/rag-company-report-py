@@ -111,6 +111,7 @@ def judge_failure_lines(rows: list[dict], first_error: str | None) -> list[str]:
 
 def _cmd_run(args: argparse.Namespace) -> int:
     items = load_items(args.dataset)
+    dataset_hash = file_hash(args.dataset)
     if args.corp:
         items = [item for item in items if item.corp_code == args.corp]
     if not items:
@@ -158,7 +159,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         "temperature": args.temperature,
         "seed": args.seed,
         "dataset_path": args.dataset,
-        "dataset_hash": file_hash(args.dataset),
+        "dataset_hash": dataset_hash,
         "git_commit": git_commit(),
         "started_at": started.isoformat(),
     }

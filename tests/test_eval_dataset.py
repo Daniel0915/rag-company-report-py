@@ -160,3 +160,51 @@ def test_malformed_yaml_becomes_dataset_error(tmp_path, capsys):
     cands = tmp_path / "candidates.yaml"
     assert main(["accept", "--candidates", str(cands), "--dataset", str(path)]) == 1
     assert "오류" in capsys.readouterr().out
+
+
+def test_multiline_source_chunk_text_is_written_as_block_scalar(tmp_path):
+    path = tmp_path / "candidates.yaml"
+    text = "첫 줄입니다.   \n둘째 줄: 매출 100억\n\n셋째 줄"
+    cand = Candidate(**{**_item("g0001").__dict__, "review": "pending", "source_chunk_text": text})
+    save_candidates(path, [cand])
+    assert "source_chunk_text: |" in path.read_text(encoding="utf-8")
+    loaded = load_candidates(path)[0]
+    assert loaded.source_chunk_text == "첫 줄입니다.\n둘째 줄: 매출 100억\n\n셋째 줄"
+
+
+def test_quoted_section_order_is_coerced_to_int(tmp_path):
+    path = tmp_path / "dataset.yaml"
+    path.write_text(
+        "- id: q1\n  corp_code: '00126380'\n  question: q\n  answerable: true\n  origin: manual\n"
+        "  must_include: [a]\n  expected_sections:\n"
+        "    - {rcept_no: '1', source_file: a.xml, section_order: '12', section_title: t}\n",
+        encoding="utf-8",
+    )
+    assert load_items(path)[0].expected_sections[0].section_order == 12
+
+
+def test_non_numeric_section_order_is_rejected(tmp_path):
+    path = tmp_path / "dataset.yaml"
+    path.write_text(
+        "- id: q1\n  corp_code: '00126380'\n  question: q\n  answerable: true\n  origin: manual\n"
+        "  must_include: [a]\n  expected_sections:\n"
+        "    - {rcept_no: '1', source_file: a.xml, section_order: abc, section_title: t}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(DatasetError):
+        load_items(path)
+
+
+@pytest.mark.parametrize("field_line", ["must_include: 반도체", "expected_sections: 사업의 내용"])
+def test_scalar_where_list_expected_is_rejected(tmp_path, field_line):
+    path = tmp_path / "dataset.yaml"
+    base = {"must_include": "must_include: [a]", "expected_sections": "expected_sections: []"}
+    key = field_line.split(":")[0]
+    base[key] = field_line
+    path.write_text(
+        "- id: q1\n  corp_code: '00126380'\n  question: q\n  answerable: false\n  origin: manual\n"
+        f"  {base['must_include']}\n  {base['expected_sections']}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(DatasetError, match=key):
+        load_items(path)
