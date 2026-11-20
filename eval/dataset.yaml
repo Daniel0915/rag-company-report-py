@@ -1,1 +1,469 @@
-[]
+- id: m0001
+  corp_code: 00126380
+  question: 삼성전자의 2030년 주당 배당금 계획은 얼마야?
+  answerable: false
+  origin: manual
+- id: m0002
+  corp_code: 00126380
+  question: 삼성전자 2027년 1분기 연결 기준 영업이익은 얼마야?
+  answerable: false
+  origin: manual
+- id: m0003
+  corp_code: 00126380
+  question: 삼성전자 2026년 12월 31일 보통주 종가는 얼마야?
+  answerable: false
+  origin: manual
+- id: m0004
+  corp_code: 00126380
+  question: 삼성전자의 2028년 설비투자(CAPEX) 계획 금액은 얼마야?
+  answerable: false
+  origin: manual
+- id: m0005
+  corp_code: 00126380
+  question: 삼성전자가 2029년에 인수할 예정인 기업은 어디야?
+  answerable: false
+  origin: manual
+- id: m0006
+  corp_code: 00126380
+  question: 삼성전자 평택캠퍼스 구내식당의 하루 평균 식사 인원은 몇 명이야?
+  answerable: false
+  origin: manual
+- id: m0007
+  corp_code: 00126380
+  question: 삼성전자 신입사원 면접에서 가장 많이 나온 질문은 뭐야?
+  answerable: false
+  origin: manual
+- id: m0008
+  corp_code: 00126380
+  question: 삼성전자 서초사옥에 있는 엘리베이터는 모두 몇 대야?
+  answerable: false
+  origin: manual
+- id: q0001
+  corp_code: 00126380
+  question: 2025년 12월 말 기준 사업보고서에서 이익잉여금 총액과 그 중 임의적립금은 각각 얼마이고, 전년 말과 비교하면 총 이익잉여금은
+    얼마나 늘었나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 12월 말(당기) 이익잉여금 총액은 254,566,830백만원이고, 이 중 임의적립금은 230,829,189백만원입니다.
+    전기(2024년 말) 이익잉여금은 233,734,316백만원이므로, 총 이익잉여금은 20,832,514백만원 늘었습니다.
+  must_include:
+  - 254,566,830백만원
+  - 230,829,189백만원
+  - 233,734,316백만원
+  expected_sections:
+  - rcept_no: '20260310002820'
+    source_file: 20260310002820.xml
+    section_order: 77
+    section_title: 19. 이익잉여금
+  pblntf_ty: A
+- id: q0002
+  corp_code: 00126380
+  question: 2024년 12월 말 기준 사업보고서에서, 삼성에스디아이가 중국 톈진 법인인 Samsung SDI（Tianjin）Battery
+    Co.,Ltd.에 대해 보유한 지분율은 얼마이고, 이 회사 외에 홍콩 자회사를 통해서도 톈진 지역 법인에 출자한 사례가 있나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2024년 12월 사업보고서 기준 삼성에스디아이(주)는 Samsung SDI（Tianjin）Battery Co.,Ltd.의
+    지분을 80.0% 보유하고 있습니다. 또한 홍콩 자회사인 Samsung SDI(Hong Kong) Ltd.가 Tianjin Samsung SDI
+    Co., Ltd.의 지분 80.0%를 보유하고 있어, 홍콩 법인을 통한 톈진 지역 법인 출자 사례도 있습니다.
+  must_include:
+  - '80.0'
+  - Samsung SDI(Hong Kong) Ltd.
+  - Tianjin Samsung SDI Co., Ltd.
+  expected_sections:
+  - rcept_no: '20250311001085'
+    source_file: 20250311001085.xml
+    section_order: 102
+    section_title: IX. 계열회사 등에 관한 사항
+  pblntf_ty: A
+- id: q0003
+  corp_code: 00126380
+  question: 2025년 6월 반기보고서 기준으로 삼성전자는 종속기업을 모두 몇 개 거느리고 있고, 그중 해외에서 운영되는 비상장 종속기업은
+    몇 개인가요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 6월 반기보고서 기준 삼성전자는 한국과 DX 부문 산하 해외 9개 지역총괄, DS 부문 산하 해외 5개
+    지역총괄의 생산·판매법인, SDC 및 Harman 산하 종속기업 등 총 230개의 종속기업으로 구성되어 있습니다. 이 중 해외(미주, 유럽·CIS,
+    중동·아프리카, 아시아 등)에서 생산, 판매, 연구활동 등을 담당하는 비상장 종속기업은 197개입니다.
+  must_include:
+  - 230개
+  - 197개
+  expected_sections:
+  - rcept_no: '20250814003156'
+    source_file: 20250814003156.xml
+    section_order: 7
+    section_title: 1. 사업의 개요
+  pblntf_ty: A
+- id: q0004
+  corp_code: 00126380
+  question: 2025년 상반기 말(2025년 6월 30일) 기준으로 연결 재무제표상 금융부채 분류 합계가 얼마이고, 그중 장기차입금과 사채는
+    각각 얼마였나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 6월 말(당반기말) 금융부채 분류 합계는 66,095,999백만원입니다. 이 중 장기차입금은 24,937,321백만원이고,
+    사채는 20,175백만원입니다.
+  must_include:
+  - 66,095,999백만원
+  - 24,937,321백만원
+  - 20,175백만원
+  expected_sections:
+  - rcept_no: '20250814003156'
+    source_file: 20250814003156.xml
+    section_order: 80
+    section_title: 26. 공정가치측정
+  pblntf_ty: A
+- id: q0005
+  corp_code: 00126380
+  question: 2026년 3분기 연결 기준으로 3개월 동안 외환차이 때문에 금융비용이 금융수익보다 얼마나 더 컸는지 알려줘. 외환차이 금융수익과
+    금융비용은 각각 얼마야?
+  answerable: true
+  origin: generated
+  expected_answer: 2026년 3분기(당분기) 3개월 기준 외환차이 금융수익은 4,264,140백만원, 외환차이 금융비용은 13,614,606백만원입니다.
+    따라서 외환차이만 보면 금융비용이 금융수익보다 9,350,466백만원 더 큽니다.
+  must_include:
+  - 4,264,140백만원
+  - 13,614,606백만원
+  expected_sections:
+  - rcept_no: '20261116001482'
+    source_file: 20261116001482.xml
+    section_order: 40
+    section_title: 21. 금융수익 및 금융비용 (연결)
+  pblntf_ty: A
+- id: q0006
+  corp_code: 00126380
+  question: 2026년 1분기(3월 기준) 연결 기준 기타수익 중 유형자산처분이익은 직전 분기보다 얼마나 늘었고, 당분기 유형자산처분손실은
+    얼마였어?
+  answerable: true
+  origin: generated
+  expected_answer: 당분기 유형자산처분이익은 18,131백만원으로 전분기 6,819백만원보다 11,312백만원 늘었습니다. 당분기 유형자산처분손실은
+    55,833백만원이었습니다.
+  must_include:
+  - 18,131백만원
+  - 6,819백만원
+  - 55,833백만원
+  expected_sections:
+  - rcept_no: '20260515002181'
+    source_file: 20260515002181.xml
+    section_order: 39
+    section_title: 20. 기타수익 및 기타비용 (연결)
+  pblntf_ty: A
+- id: q0007
+  corp_code: 00126380
+  question: 2024년 12월 사업보고서 기준으로, 정관상 사업목적 중 반도체와 관련된 항목은 무엇이고, 현재 실제로 영위하고 있는 건가요?
+  answerable: true
+  origin: generated
+  expected_answer: 2024년 12월 사업보고서 정관 사업목적 중 반도체 관련 항목은 세 가지입니다. 반도체 및 관련 제품의 제조·판매업(12번),
+    반도체 제조 장치의 제조·판매업(13번), 반도체 제조를 위한 원부자재의 제조·판매업(14번)입니다. 세 항목 모두 '영위'로 표시되어 있어
+    실제로 영위 중입니다.
+  must_include:
+  - 반도체 및 관련 제품의 제조, 판매업
+  - 반도체 제조 장치의 제조, 판매업
+  - 반도체 제조를 위한 원부자재의 제조, 판매업
+  - 영위
+  expected_sections:
+  - rcept_no: '20250311001085'
+    source_file: 20250311001085.xml
+    section_order: 6
+    section_title: 5. 정관에 관한 사항
+  pblntf_ty: A
+- id: q0008
+  corp_code: 00126380
+  question: 2025년 6월 말 기준 반기보고서에서, 회사가 해외종속기업의 계약이행을 위해 제공한 지급보증 한도는 얼마이고 이 보증은 언제
+    끝나나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 반기말(2025.06) 현재 회사가 해외종속기업의 계약이행을 위해 제공하고 있는 지급보증 한도액은 502,082백만원이며,
+    보증종료일은 2026-06-13입니다.
+  must_include:
+  - 502,082백만원
+  - '2026-06-13'
+  expected_sections:
+  - rcept_no: '20250814003156'
+    source_file: 20250814003156.xml
+    section_order: 67
+    section_title: 13. 우발부채와 약정사항
+  pblntf_ty: A
+- id: q0009
+  corp_code: 00126380
+  question: 2024년 9월 분기보고서 기준으로, 발라지 부사장은 어떤 직책을 맡고 있고 직전에는 어떤 직책이었으며 최종 학력은 어떻게 되나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2024년 9월 분기보고서에 따르면 발라지 부사장(1969년 9월생, 남, 상근)은 SSIR연구소장을 맡고 있습니다.
+    직전 직책은 SSIR VP였습니다. 최종 학력은 Birla Institute of Technology and Science, Pilani 석사이고,
+    계열회사 임원으로 기재되어 있습니다.
+  must_include:
+  - SSIR연구소장
+  - SSIR VP
+  - Birla Institute of Technology and Science, Pilani(석사)
+  expected_sections:
+  - rcept_no: '20241114002642'
+    source_file: 20241114002642.xml
+    section_order: 91
+    section_title: 1. 임원 및 직원 등의 현황
+  pblntf_ty: A
+- id: q0010
+  corp_code: 00126380
+  question: 삼성전자 2024년 3분기 누적 기준 별도 재무제표에서 해외 수출 중 중국 매출은 얼마였고, 미주 매출보다 많았나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2024년 3분기(제56기 3분기) 누적 기준 별도 기준 수출 매출 중 중국은 494,274억원으로, 미주 461,333억원보다
+    33,941억원 더 많았습니다.
+  must_include:
+  - 494,274억원
+  - 461,333억원
+  expected_sections:
+  - rcept_no: '20241114002642'
+    source_file: 20241114002642.xml
+    section_order: 10
+    section_title: 4. 매출 및 수주상황
+  pblntf_ty: A
+- id: q0011
+  corp_code: 00126380
+  question: 2024년 사업보고서를 보면 SVIC 28호 신기술투자조합 투자 장부가액이 2024년 한 해 동안 어떻게 달라졌나요? 지분율도
+    알려주세요.
+  answerable: true
+  origin: generated
+  expected_answer: SVIC 28호 신기술투자조합의 장부가액은 2024년 기초 27,566에서 기말 99로 줄었습니다. 이 기간 평가손익은
+    -27,467이었고, 지분율은 기초와 기말 모두 99.0%로 그대로입니다.
+  must_include:
+  - 27,566
+  - 27,467
+  expected_sections:
+  - rcept_no: '20250311001085'
+    source_file: 20250311001085.xml
+    section_order: 110
+    section_title: 3. 타법인출자 현황(상세)
+  pblntf_ty: A
+- id: q0012
+  corp_code: 00126380
+  question: 2024년 사업보고서 기준으로, 삼성전자의 특수관계자 거래 중 '매출 등' 항목에서 삼성전기㈜와 삼성SDI㈜에 대한 금액은 각각
+    얼마였고, 어느 쪽이 더 컸나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2024년 '매출 등' 특수관계자거래는 삼성전기㈜가 37,521, 삼성SDI㈜가 70,196이었습니다. 삼성SDI㈜
+    쪽이 더 컸습니다.
+  must_include:
+  - 37,521
+  - 70,196
+  expected_sections:
+  - rcept_no: '20250311001085'
+    source_file: 20250311001085.xml
+    section_order: 87
+    section_title: 30. 특수관계자와의 거래
+  pblntf_ty: A
+- id: q0013
+  corp_code: 00126380
+  question: 2026년 7월 8일에 직원 성과급 지급용으로 자기주식을 처분한다고 하던데, 보통주 몇 주를 얼마 가격 기준으로 처분하고 총
+    처분금액은 얼마인가요?
+  answerable: true
+  origin: generated
+  expected_answer: 2026년 7월 8일 하루 동안 직원 주식보상 목적으로 보통주 1,083,434주를 주당 318,000원 기준으로
+    처분하며, 처분예정금액은 총 344,532,012,000원입니다. 처분 상대방은 직원 49,345명입니다.
+  must_include:
+  - 1,083,434주
+  - 318,000원
+  - 344,532,012,000원
+  expected_sections:
+  - rcept_no: '20260707000403'
+    source_file: 20260707000403.xml
+    section_order: 2
+    section_title: 자기주식 처분 결정
+  pblntf_ty: B
+- id: q0014
+  corp_code: 00126380
+  question: 2025년 2월 18일 이사회에서 결정한 자기주식 취득에서, 보통주 취득예정주식 수와 취득예정금액은 각각 얼마였고, 그 금액은
+    어떤 주가를 기준으로 계산한 건가요?
+  answerable: true
+  origin: generated
+  expected_answer: 보통주 취득예정주식은 48,149,247주이고 취득예정금액은 2,696,357,832,000원입니다. 이 금액은
+    이사회 결의일 전일(2025년 2월 17일) 종가 기준(보통주 56,000원)으로 계산했으며, 향후 주가 변동에 따라 실제 취득금액은 달라질
+    수 있습니다.
+  must_include:
+  - 48,149,247
+  - 2,696,357,832,000
+  - 56,000원
+  expected_sections:
+  - rcept_no: '20250218000019'
+    source_file: 20250218000019.xml
+    section_order: 2
+    section_title: 자기주식 취득 결정
+  pblntf_ty: B
+- id: q0015
+  corp_code: 00126380
+  question: 2026년 1월 23일 이사회에서 결정한 자기주식 처분으로 임원 등에게 주기로 한 보통주가 몇 주이고, 발행주식총수 대비 비중은
+    얼마나 돼?
+  answerable: true
+  origin: generated
+  expected_answer: 2026년 1월 23일 이사회 결의로 회사 임원 등에게 처분하는 보통주식은 1,152,022주다. 이는 발행주식총수(보통주
+    5,919,637,922주)의 0.019% 수준이어서 주식가치 희석효과는 미미할 것으로 예상된다. 처분 사유는 '24년 성과인센티브 지급 시
+    주식 지급을 약정했고 그 요건을 충족했기 때문이다.
+  must_include:
+  - 1,152,022주
+  - 5,919,637,922주
+  - 0.019%
+  expected_sections:
+  - rcept_no: '20260126000001'
+    source_file: 20260126000001.xml
+    section_order: 2
+    section_title: 자기주식 처분 결정
+  pblntf_ty: B
+- id: q0016
+  corp_code: 00126380
+  question: 삼성전자가 2025년 5월 23일에 제출한 자기주식처분결정 주요사항보고서에서 대표이사와 작성책임자는 각각 누구로 되어 있나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 5월 23일자 삼성전자 자기주식처분결정 주요사항보고서의 대표이사는 전영현이고, 작성책임자는 재경팀장 김동욱입니다.
+  must_include:
+  - 전영현
+  - 김동욱
+  - 재경팀장
+  expected_sections:
+  - rcept_no: '20250523000601'
+    source_file: 20250523000601.xml
+    section_order: 1
+    section_title: 주요사항보고서 / 거래소 신고의무 사항
+  pblntf_ty: B
+- id: q0017
+  corp_code: 00126380
+  question: 2021년 12월에 임원으로 선임된 삼성전자 이선화 상무는 등기임원인가요, 비등기임원인가요? 선임일도 알려주세요.
+  answerable: true
+  origin: generated
+  expected_answer: 이선화 상무는 비등기임원이며, 선임일은 2021.12.09입니다. 퇴임일은 '-'로 기재되어 있어 퇴임하지 않았습니다.
+  must_include:
+  - 비등기임원
+  - 2021.12.09
+  expected_sections:
+  - rcept_no: '20260721000618'
+    source_file: 20260721000618.xml
+    section_order: 2
+    section_title: 2. 보고자에 관한 사항
+  pblntf_ty: D
+- id: q0018
+  corp_code: 00126380
+  question: 2025년 8월 5일에 KB증권을 통해 취득한 자기주식 중 보통주식은 몇 주였고, 주당 취득단가와 총 취득금액은 얼마였나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 8월 5일 KB증권을 통해 보통주식 900,000주를 취득했으며, 주당 취득단가는 70,195원, 총
+    취득금액은 63,175,416,900원입니다.
+  must_include:
+  - 900,000
+  - 70,195
+  - 63,175,416,900
+  expected_sections:
+  - rcept_no: '20251002000524'
+    source_file: 20251002000524.xml
+    section_order: 5
+    section_title: 3. 취득내용
+  pblntf_ty: E
+- id: q0019
+  corp_code: 00126380
+  question: 삼성전자가 2026년 6월 26일에 제출한 지속가능경영보고서 자율공시에서, 보고서의 Planet 파트는 DX 부문과 DS 부문
+    각각 어떤 환경 항목들을 다루고 있나요?
+  answerable: true
+  origin: generated
+  expected_answer: Planet 파트는 환경전략 소개로 시작하며, DX 부문과 DS 부문 모두 추진체계와 주요성과, 기후변화, 자원순환,
+    수자원, 오염물질, 생물다양성의 6개 항목을 각각 다룬다. 해당 공시의 제출(확인)일자는 2026-06-26이다.
+  must_include:
+  - DX 부문
+  - DS 부문
+  - 추진체계와 주요성과
+  - 기후변화
+  - 자원순환
+  - 수자원
+  - 오염물질
+  - 생물다양성
+  expected_sections:
+  - rcept_no: '20260626800871'
+    source_file: 20260626800871.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0020
+  corp_code: 00126380
+  question: 삼성전자의 2026년 3분기(7~9월) 연결 매출액은 얼마였고, 직전 분기인 2분기 대비 얼마나 늘었나요?
+  answerable: true
+  origin: generated
+  expected_answer: 삼성전자의 2026년 3분기(2026-07-01~2026-09-30) 연결 매출액은 195.00조원으로, 직전 분기인
+    2026년 2분기(171.50조원)보다 13.70% 증가했습니다. 이 수치는 잠정치라 향후 확정치와 다를 수 있습니다.
+  must_include:
+  - 195.00조원
+  - 171.50조원
+  - 13.70%
+  expected_sections:
+  - rcept_no: '20261008800004'
+    source_file: 20261008800004.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0021
+  corp_code: 00126380
+  question: 삼성전자가 2026년 7월 30일 공시한 DS부문 사내 협력사 명절 격려금 총액이 얼마고, 그중 이미 지급된 금액은 얼마예요?
+  answerable: true
+  origin: generated
+  expected_answer: 삼성전자는 DS부문 사내 총무성 협력사 명절 격려금으로 총 17.3억원을 출연하기로 했습니다. 이 중 8.5억원은
+    2026년 2월 10일에 지급이 끝났습니다. 지급은 대·중소기업·농어업협력재단에 기금을 출연하면 재단이 각 협력사에 주는 방식입니다.
+  must_include:
+  - 17.3억원
+  - 8.5억원
+  - 2026년 2월 10일
+  expected_sections:
+  - rcept_no: '20260730800825'
+    source_file: 20260730800825.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0022
+  corp_code: 00126380
+  question: 삼성전자가 2024년부터 2026년까지 3년간 정규배당을 총 얼마로 정했고, 그중 분기당 금액은 얼마인가요? 그리고 이번 결산배당에
+    정기 분기배당금 외에 얼마를 더 얹어 총액을 얼마로 정했나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2024~2026년 3년간 주주환원 정책상 정규배당은 연간 총액 9.8조원, 분기당 2.45조원이다. 결산배당은
+    세제개편과 예상 배당재원을 감안해 정기 분기배당금에 1.3조원을 추가했고, 총액은 3.75조원으로 이사회가 정했다.
+  must_include:
+  - 9.8조원
+  - 2.45조원
+  - 1.3조원
+  - 3.75조원
+  expected_sections:
+  - rcept_no: '20260129800004'
+    source_file: 20260129800004.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0023
+  corp_code: 00126380
+  question: 삼성전자가 2024년 4분기 잠정 영업실적 공정공시에서, 이 실적을 나중에 다시 공시하겠다고 한 시점이 언제야?
+  answerable: true
+  origin: generated
+  expected_answer: 2024년 4분기 실적 관련 이사회 승인시점에 관련 내용을 재공시할 예정입니다. 이 잠정 실적은 외부감사인의 회계감사가
+    끝나지 않은 상태에서 제공된 정보라서 실제 실적과 차이가 날 수 있습니다.
+  must_include:
+  - 이사회 승인시점
+  - 재공시
+  expected_sections:
+  - rcept_no: '20250108800024'
+    source_file: 20250108800024.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0024
+  corp_code: 00126380
+  question: 2026년 사업연도 기준 공시에서 삼성생명보험이 보유한 보통주와 그 지분율이 어떻게 되고, 우선주까지 합친 합계 지분율은 얼마로
+    나와 있나요?
+  answerable: true
+  origin: generated
+  expected_answer: 발췌의 표에서 삼성생명보험(주)는 계열회사(국내+국외) 항목으로 분류돼 있습니다. 보통주는 7,099,088주(15.43%),
+    우선주는 720주(0.02%)이고, 합계는 7,099,808주(14.46%)입니다.
+  must_include:
+  - 7,099,088
+  - '15.43'
+  - '720'
+  - '0.02'
+  - 7,099,808
+  - '14.46'
+  expected_sections:
+  - rcept_no: '20250602000112'
+    source_file: 20250602000112.xml
+    section_order: 8
+    section_title: (1) 소유지분현황[ESG]
+  pblntf_ty: J
