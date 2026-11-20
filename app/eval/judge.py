@@ -52,6 +52,6 @@ def judge(claude: ClaudeCliClient, item: Item, retrieved: list[Retrieved], answe
     """호출 예외나 파싱 실패면 None."""
     try:
         raw = claude.generate(_SYSTEM_PROMPT, build_judge_prompt(item, retrieved, answer))
-    except RuntimeError:
+    except Exception:  # noqa: BLE001 - 채점은 문항별 선택 기능이라 어떤 호출 오류도 건너뛴다
         return None
     return parse_judge(raw)

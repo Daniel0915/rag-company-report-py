@@ -62,3 +62,7 @@ def test_judge_returns_none_on_cli_error():
 def test_judge_returns_result():
     reply = '{"faithfulness": 1, "correct": false, "reason": "r"}'
     assert judge(_Fake(reply), _item(), _retrieved(), "a") == JudgeResult(1.0, False, "r")
+
+
+def test_judge_returns_none_on_non_runtime_error():
+    assert judge(_Fake(PermissionError("not executable")), _item(), _retrieved(), "a") is None
