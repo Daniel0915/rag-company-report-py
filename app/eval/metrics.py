@@ -19,6 +19,12 @@ REFUSAL_PHRASES: tuple[str, ...] = (
     "포함되어 있지 않",
     "정보가 없",
     "나와 있지 않",
+    "명시되어 있지 않",
+    "제공되지 않",
+    # 로컬 모델이 영어로 거절하는 경우
+    "not provided",
+    "does not contain",
+    "not available",
 )
 _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 _NO_TYPE = "없음"

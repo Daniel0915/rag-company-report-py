@@ -50,6 +50,13 @@ def test_refusal_detection():
     assert not is_refusal("매출액은 300조원입니다.")
 
 
+def test_refusal_detection_covers_baseline_misses():
+    # 첫 기준선(2026-11-21)에서 거절인데 거절로 못 잡은 실제 답변들
+    assert is_refusal("2029년에 인수될 예정이라는 정보는 명시되어 있지 않습니다.")
+    assert is_refusal("I'm sorry, but the specific details regarding the dividend plan are not provided in the data.")
+    assert is_refusal("The provided data does not contain specific information about daily diners.")
+
+
 def test_extract_numbers_drops_single_digits():
     assert extract_numbers("[1] 8,709억 12.5% 5") == {"8709", "12.5"}
 
