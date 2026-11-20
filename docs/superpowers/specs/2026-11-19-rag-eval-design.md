@@ -52,7 +52,7 @@
   | 유형 없음 (그래프에 `Report`가 없음) | 12 | 2 |
   | 뉴스 (`doc_type=NEWS`) | 126 | 40 |
 
-- 청크 메타데이터에는 공시 유형이 없다. 유형은 청크의 `metadata.rcept_no`로 그래프의 `Report.pblntf_ty`를 찾아서 얻는다.
+- 공시 유형은 청크의 `metadata.pblntf_ty`를 쓴다. 예전에 색인한 청크(삼성전자 760개)에는 이 값이 없으므로, 그때는 `metadata.rcept_no`로 그래프의 `Report.pblntf_ty`를 찾는다. 둘 다 없으면 유형을 모르는 청크다.
 - 주간 수집 때문에 인덱스는 계속 커진다. 설정을 바꾸지 않아도 경쟁 청크가 늘어 검색 점수가 바뀔 수 있다.
 
 - 청크 ID는 재색인하면 바뀐다. 정답 근거는 청크 ID가 아니라 **공시 섹션**으로 지정한다. 섹션 키는 `(rcept_no, source_file, section_order)`이고, `section_title`을 함께 저장한다. 공시 하나의 zip에 본문과 감사보고서 같은 XML 파일이 여럿 들어 있고, 파일마다 `section_order`가 0부터 다시 시작하기 때문에 `source_file`이 필요하다. 삼성전자 데이터에서 `(rcept_no, section_order)`만으로는 12개 섹션이 겹친다.
