@@ -10,7 +10,15 @@ from datetime import datetime
 from neo4j import Driver
 
 from app.eval.dataset import Item
-from app.eval.metrics import Retrieved, aggregate, aggregate_by_type, score_item
+from app.agent.service import AgentService
+from app.eval.metrics import (
+    Retrieved,
+    aggregate,
+    aggregate_by_type,
+    retrieved_from_records,
+    score_item,
+    score_tools,
+)
 from app.services.company_chat import CompanyChatService
 from app.vector.document import Document
 from app.vector.registry import label_for
@@ -36,11 +44,21 @@ def to_retrieved(doc: Document) -> Retrieved:
     )
 
 
-def run_item(
-    chat: CompanyChatService, item: Item, top_k: int, provider: str, judge_fn: Callable | None
-) -> dict:
-    """문항 하나를 돌려 결과 행을 만든다. 어떤 예외든 error와 error_stage(retrieve|answer|score)로 남기고 metrics는 None으로 둔다."""
-    row = {
+def _retrieved_rows(retrieved: list[Retrieved]) -> list[dict]:
+    return [
+        {
+            "rcept_no": r.rcept_no,
+            "source_file": r.source_file,
+            "section_order": r.section_order,
+            "section_title": r.section_title,
+            "score": r.score,
+        }
+        for r in retrieved
+    ]
+
+
+def _empty_row(item: Item) -> dict:
+    return {
         "id": item.id,
         "corp_code": item.corp_code,
         "pblntf_ty": item.pblntf_ty,
@@ -54,20 +72,18 @@ def run_item(
         "error": None,
         "error_stage": None,
     }
+
+
+def run_item(
+    chat: CompanyChatService, item: Item, top_k: int, provider: str, judge_fn: Callable | None
+) -> dict:
+    """문항 하나를 돌려 결과 행을 만든다. 어떤 예외든 error와 error_stage(retrieve|answer|score)로 남기고 metrics는 None으로 둔다."""
+    row = _empty_row(item)
     stage = "retrieve"
     try:
         docs = chat.retrieve(item.question, item.corp_code, top_k)
         retrieved = [to_retrieved(d) for d in docs]
-        row["retrieved"] = [
-            {
-                "rcept_no": r.rcept_no,
-                "source_file": r.source_file,
-                "section_order": r.section_order,
-                "section_title": r.section_title,
-                "score": r.score,
-            }
-            for r in retrieved
-        ]
+        row["retrieved"] = _retrieved_rows(retrieved)
         stage = "answer"
         answer = chat.answer(item.question, item.corp_code, docs, provider)
         row["answer"] = answer.text
@@ -76,6 +92,32 @@ def run_item(
         row["metrics"] = score_item(item, retrieved, answer.text)
         result = judge_fn(item, retrieved, answer.text) if judge_fn else None
         row["judge"] = asdict(result) if result else None
+    except Exception as exc:  # noqa: BLE001 - 한 문항의 실패가 전체 실행을 멈추지 않게 한다
+        row["metrics"] = None
+        row["error"] = f"{type(exc).__name__}: {exc}"
+        row["error_stage"] = stage
+    return row
+
+
+def run_agent_item(agent: AgentService, item: Item, provider: str, judge_fn: Callable | None) -> dict:
+    """에이전트 경로로 문항 하나를 돌린다. 오류 단계는 agent|score. 검색 지표는 search_disclosures 청크로 센다."""
+    row = _empty_row(item) | {"tool_calls": []}
+    stage = "agent"
+    try:
+        result = agent.run(item.question, item.corp_code, provider)
+        retrieved = retrieved_from_records(result.records)
+        row["retrieved"] = _retrieved_rows(retrieved)
+        row["tool_calls"] = [
+            {"seq": r.seq, "name": r.name, "arguments": r.arguments, "ok": r.ok} for r in result.records
+        ]
+        row["answer"] = result.answer
+        row["prompt_tokens"] = result.prompt_tokens
+        stage = "score"
+        row["metrics"] = score_item(
+            item, retrieved, result.answer, context_texts=[r.result_text for r in result.records]
+        ) | score_tools(item, result.records)
+        judged = judge_fn(item, retrieved, result.answer) if judge_fn else None
+        row["judge"] = asdict(judged) if judged else None
     except Exception as exc:  # noqa: BLE001 - 한 문항의 실패가 전체 실행을 멈추지 않게 한다
         row["metrics"] = None
         row["error"] = f"{type(exc).__name__}: {exc}"
@@ -109,6 +151,21 @@ def run(
     return rows
 
 
+def run_agent(
+    items: list[Item],
+    agent: AgentService,
+    provider: str,
+    judge_fn: Callable | None,
+    on_progress: Callable[[int, int, str], None] | None = None,
+) -> list[dict]:
+    rows = []
+    for number, item in enumerate(items, start=1):
+        if on_progress:
+            on_progress(number, len(items), item.id)
+        rows.append(run_agent_item(agent, item, provider, judge_fn))
+    return rows
+
+
 def build_run_file(config: dict, index: dict, rows: list[dict]) -> dict:
     return {
         "config": config,
@@ -118,8 +175,8 @@ def build_run_file(config: dict, index: dict, rows: list[dict]) -> dict:
     }
 
 
-def run_file_name(started: datetime, provider: str, top_k: int) -> str:
-    return f"{started:%Y%m%d-%H%M%S}_{provider}_k{top_k}.json"
+def run_file_name(started: datetime, provider: str, top_k: int, agent: bool = False) -> str:
+    return f"{started:%Y%m%d-%H%M%S}_{provider}_k{top_k}{'_agent' if agent else ''}.json"
 
 
 def git_commit() -> str | None:

@@ -6,6 +6,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 
+from app.agent.trace import ToolCallRecord
 from app.eval.dataset import Item, Section
 from app.services.company_chat import _build_context_text
 from app.vector.document import Document
@@ -115,8 +116,12 @@ def _seen_by_model(retrieved: list[Retrieved]) -> list[str]:
     return [_build_context_text([doc]) for doc in docs]
 
 
-def score_item(item: Item, retrieved: list[Retrieved], answer: str) -> dict[str, float | int]:
-    unsupported = unsupported_numbers(answer, _seen_by_model(retrieved), item.question)
+def score_item(
+    item: Item, retrieved: list[Retrieved], answer: str, context_texts: list[str] | None = None
+) -> dict[str, float | int]:
+    """context_texts가 있으면(에이전트 경로: 모든 도구 결과 텍스트) 숫자 근거로 청크 대신 그것을 쓴다."""
+    seen = _seen_by_model(retrieved) if context_texts is None else context_texts
+    unsupported = unsupported_numbers(answer, seen, item.question)
     if not item.answerable:
         return {"correct_refusal": int(is_refusal(answer)), "unsupported_numbers": unsupported}
     return {
@@ -127,6 +132,36 @@ def score_item(item: Item, retrieved: list[Retrieved], answer: str) -> dict[str,
         "false_refusal": int(is_refusal(answer)),
         "unsupported_numbers": unsupported,
     }
+
+
+def score_tools(item: Item, records: list[ToolCallRecord]) -> dict[str, int]:
+    """도구 호출 지표. tool_selection·unnecessary_web은 expected_tools를 채운 문항에서만 낸다."""
+    metrics = {"tool_calls": len(records), "tool_errors": sum(not r.ok for r in records)}
+    if item.expected_tools:
+        used = {r.name for r in records}
+        metrics["tool_selection"] = int(bool(used & set(item.expected_tools)))
+        metrics["unnecessary_web"] = int("web_search" in used and "web_search" not in item.expected_tools)
+    return metrics
+
+
+def retrieved_from_records(records: list[ToolCallRecord]) -> list[Retrieved]:
+    """search_disclosures가 돌려준 청크 출처를 호출 순서대로 이어 붙인다."""
+    return [
+        Retrieved(
+            rcept_no=s.get("rcept_no"),
+            source_file=s.get("source_file"),
+            section_order=s.get("section_order"),
+            section_title=s.get("section_title"),
+            score=s.get("score"),
+            text=s.get("text", ""),
+            corp_name=s.get("corp_name"),
+            report_nm=s.get("report_nm"),
+        )
+        for rec in records
+        if rec.name == "search_disclosures"
+        for s in rec.sources
+        if s.get("kind") == "chunk"
+    ]
 
 
 def aggregate(rows: list[dict]) -> dict[str, dict[str, float | int]]:

@@ -9,6 +9,8 @@ from pathlib import Path
 
 import yaml
 
+from app.agent.tools import TOOL_NAMES
+
 ORIGINS = ("generated", "manual")
 REVIEWS = ("pending", "ok", "drop")
 _GENERATED_ID = re.compile(r"^q(\d+)$")
@@ -45,6 +47,7 @@ class Item:
     must_include: list[str] = field(default_factory=list)
     expected_sections: list[Section] = field(default_factory=list)
     pblntf_ty: str | None = None
+    expected_tools: list[str] = field(default_factory=list)  # 이 중 하나라도 쓰면 된다. 에이전트 평가에서만 쓴다
 
 
 @dataclass
@@ -73,9 +76,12 @@ def _parse(entry: object, cls: type[Item]) -> Item:
     unknown = set(entry) - {f.name for f in fields(cls)}
     if unknown:
         raise DatasetError(f"{item_id}: 알 수 없는 필드 {sorted(unknown)}")
-    for name in ("must_include", "expected_sections"):
+    for name in ("must_include", "expected_sections", "expected_tools"):
         if entry.get(name) is not None and not isinstance(entry[name], list):
             raise DatasetError(f"{item_id}: {name}는 목록이어야 합니다 ({entry[name]!r})")
+    tools = entry.get("expected_tools") or []
+    if not all(isinstance(t, str) and t in TOOL_NAMES for t in tools):
+        raise DatasetError(f"{item_id}: expected_tools는 {list(TOOL_NAMES)} 중에서 골라야 합니다 ({tools!r})")
     try:
         kwargs = dict(entry)
         kwargs["expected_sections"] = [Section(**s) for s in entry.get("expected_sections") or []]
