@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import math
 import operator
 
 _BINARY = {
@@ -17,9 +18,14 @@ def calculate(expression: str) -> float:
     """숫자 상수, + - * /, 단항 -, 괄호만 허용한다. 그 밖의 식과 0으로 나누기는 ValueError."""
     try:
         tree = ast.parse(expression.strip(), mode="eval")
+        value = float(_eval(tree.body))
     except SyntaxError:
         raise ValueError("수식을 해석할 수 없습니다") from None
-    return float(_eval(tree.body))
+    except (OverflowError, RecursionError, MemoryError):
+        raise ValueError("수식이 너무 크거나 복잡합니다") from None
+    if not math.isfinite(value):
+        raise ValueError("계산 결과가 유한한 수가 아닙니다")
+    return value
 
 
 def _eval(node: ast.AST) -> float:

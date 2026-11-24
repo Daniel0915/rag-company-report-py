@@ -208,3 +208,22 @@ def test_long_result_is_truncated():
 
 def test_tool_result_of_truncates():
     assert ToolResult.of(True, "a" * 5000).text.endswith("…(생략)")
+
+
+def test_calculate_tool_never_raises_on_extreme_input():
+    t = _tool(fake_ctx(), "calculate")
+    for expr in ["*".join(["9" * 200] * 6), "(" * 500 + "1" + ")" * 500, "1e308*10", "1e308*10-1e308*10"]:
+        assert not t.run({"expression": expr}).ok
+
+
+def test_get_financials_returns_failure_on_http_and_parse_errors():
+    import httpx
+
+    for exc in (httpx.ConnectError("secret"), ValueError("secret")):
+
+        class Boom:
+            def fetch_key_accounts(self, *a):
+                raise exc
+
+        r = _tool(fake_ctx(dart=Boom()), "get_financials").run({"year": 2024, "report": "annual"})
+        assert not r.ok and "secret" not in r.text

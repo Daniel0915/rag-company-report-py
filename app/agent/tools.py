@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable
 
+import httpx
 from neo4j import Driver
 
 from app.agent.calculator import calculate
@@ -135,6 +136,8 @@ def _get_financials(ctx: ToolContext, args: dict) -> ToolResult:
         rows = ctx.dart.fetch_key_accounts(corp_code, args["year"], REPORT_CODES[args["report"]])
     except DartApiError as e:
         return _fail(f"DART 조회 실패 (상태 {e.status})")
+    except (httpx.HTTPError, ValueError):
+        return _fail("DART 조회 실패 (네트워크 오류 또는 응답 형식 오류)")
     if not rows:
         return ToolResult.of(True, NO_RESULT)
     consolidated = [r for r in rows if r.get("fs_div") == "CFS"]
