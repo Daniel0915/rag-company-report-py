@@ -20,13 +20,6 @@ from app.llm.claude_cli import subscription_env
 
 MCP_SERVER_NAME = "company"
 
-# CLI 내장 도구(웹검색 포함)는 막고 우리 도구만 쓰게 한다.
-_DISALLOWED_BUILTINS = [
-    "Bash", "Edit", "Write", "Read", "Glob", "Grep",
-    "WebSearch", "WebFetch", "Task", "NotebookEdit",
-]
-
-
 @dataclass(frozen=True)
 class ClaudeAgentResult:
     answer: str
@@ -62,8 +55,11 @@ def build_claude_command(
         "--output-format", "json",
         "--mcp-config", str(mcp_config_path),
         "--strict-mcp-config",
+        # 내장 도구(웹검색 포함)를 전부 끄고, 사용자 설정(훅/플러그인/CLAUDE.md)은 읽지 않는다
+        "--tools", "",
+        "--setting-sources", "",
+        # 가변 인자 플래그라 마지막에 둔다
         "--allowedTools", *[f"mcp__{MCP_SERVER_NAME}__{n}" for n in TOOL_NAMES],
-        "--disallowedTools", *_DISALLOWED_BUILTINS,
     ]
 
 

@@ -33,9 +33,14 @@ def test_mcp_config_has_no_secrets(tmp_path):
 def test_claude_command_allows_only_our_tools():
     cmd = build_claude_command("q", "sys", "sonnet", Path("/tmp/c.json"))
     assert cmd[:3] == ["claude", "-p", "q"]
-    assert "--strict-mcp-config" in cmd and "WebSearch" in cmd[cmd.index("--disallowedTools"):]
-    allowed = cmd[cmd.index("--allowedTools") + 1 : cmd.index("--disallowedTools")]
-    assert allowed == [f"mcp__company__{n}" for n in TOOL_NAMES]
+    assert "--strict-mcp-config" in cmd
+    # 내장 도구는 전부 끈다(MCP 도구는 별개)
+    assert cmd[cmd.index("--tools") + 1] == ""
+    assert "--disallowedTools" not in cmd
+    # 사용자/프로젝트 설정(훅, 플러그인, CLAUDE.md)은 읽지 않는다
+    assert cmd[cmd.index("--setting-sources") + 1] == ""
+    allowed = cmd[cmd.index("--allowedTools") + 1 :]
+    assert allowed[: len(TOOL_NAMES)] == [f"mcp__company__{n}" for n in TOOL_NAMES]
 
 
 def test_parse_cli_result():
