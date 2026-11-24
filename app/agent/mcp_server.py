@@ -21,28 +21,42 @@ def mcp_tool_list(specs: list[ToolSpec]) -> list[types.Tool]:
     ]
 
 
-def build_server(corp_code: str, max_calls: int, trace_path: str | None, settings) -> Server:
-    # 목록용 스펙은 연결 없는 컨텍스트로 만든다. 의존성은 도구가 실행될 때만 만져진다.
-    listing_specs = build_tools(ToolContext(corp_code, None, None, None, None, None))  # type: ignore[arg-type]
+def make_call_tool_handler(corp_code: str, max_calls: int, trace_path: str | None, settings):
+    """call_tool 핸들러. 컨텍스트는 첫 호출에서 만들고, 실패하면 다음 호출에서 다시 시도한다."""
     executor: ToolExecutor | None = None
     lock = asyncio.Lock()
-
-    async def on_list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
-        return types.ListToolsResult(tools=mcp_tool_list(listing_specs))
 
     async def on_call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
         nonlocal executor
         async with lock:
             if executor is None:
-                tool_ctx, _close = open_tool_context(settings, corp_code)
+                try:
+                    tool_ctx, _close = open_tool_context(settings, corp_code)
+                except Exception as e:  # noqa: BLE001 - 메시지에 비밀이 섞일 수 있어 클래스 이름만 노출
+                    return types.CallToolResult(
+                        content=[types.TextContent(text=f"도구 준비 실패: {type(e).__name__}")],
+                        is_error=True,
+                    )
                 executor = ToolExecutor(build_tools(tool_ctx), max_calls, trace_path)
             result = await asyncio.to_thread(executor.execute, params.name, params.arguments or {})
         return types.CallToolResult(
             content=[types.TextContent(text=result.text)], is_error=not result.ok
         )
 
+    return on_call_tool
+
+
+def build_server(corp_code: str, max_calls: int, trace_path: str | None, settings) -> Server:
+    # 목록용 스펙은 연결 없는 컨텍스트로 만든다. 의존성은 도구가 실행될 때만 만져진다.
+    listing_specs = build_tools(ToolContext(corp_code, None, None, None, None, None))  # type: ignore[arg-type]
+
+    async def on_list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
+        return types.ListToolsResult(tools=mcp_tool_list(listing_specs))
+
     return Server(
-        "company-report-tools", on_list_tools=on_list_tools, on_call_tool=on_call_tool
+        "company-report-tools",
+        on_list_tools=on_list_tools,
+        on_call_tool=make_call_tool_handler(corp_code, max_calls, trace_path, settings),
     )
 
 

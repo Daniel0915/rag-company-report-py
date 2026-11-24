@@ -26,20 +26,28 @@ def repo_settings() -> Settings:
 
 def open_tool_context(settings: Settings, corp_code: str) -> tuple[ToolContext, Callable[[], None]]:
     """ToolContext와, 만든 연결을 모두 닫는 함수를 돌려준다."""
-    driver = GraphDatabase.driver(
-        settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password)
-    )
-    ollama = OllamaClient(settings)
-    dart = DartApiClient(settings)
-    tavily = TavilyClient(settings)
-    graph = DisclosureGraphService(driver)
-    registry = CompanyVectorStoreRegistry(driver, ollama, settings)
-    chat = CompanyChatService(ollama, ClaudeCliClient(settings), registry, graph)
+    opened: list[Callable[[], None]] = []
 
     def close() -> None:
-        tavily.close()
-        dart.close()
-        ollama.close()
-        driver.close()
+        for close_one in reversed(opened):
+            close_one()
+
+    try:
+        driver = GraphDatabase.driver(
+            settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password)
+        )
+        opened.append(driver.close)
+        ollama = OllamaClient(settings)
+        opened.append(ollama.close)
+        dart = DartApiClient(settings)
+        opened.append(dart.close)
+        tavily = TavilyClient(settings)
+        opened.append(tavily.close)
+        graph = DisclosureGraphService(driver)
+        registry = CompanyVectorStoreRegistry(driver, ollama, settings)
+        chat = CompanyChatService(ollama, ClaudeCliClient(settings), registry, graph)
+    except BaseException:
+        close()  # 일부만 열렸다면 연 것만 닫고 예외는 그대로 올린다
+        raise
 
     return ToolContext(corp_code, chat, graph, dart, tavily, driver), close
