@@ -60,3 +60,26 @@ def test_trace_roundtrip_and_missing_file(tmp_path):
     append_record(tmp_path / "a.jsonl", rec)
     assert "삼성" in (tmp_path / "a.jsonl").read_text(encoding="utf-8")
     assert read_records(tmp_path / "a.jsonl") == [rec]
+
+
+def test_validate_supports_boolean_object_number_and_ignores_unknown_types():
+    from app.agent.executor import validate_arguments
+
+    schema = {
+        "properties": {
+            "flag": {"type": "boolean"},
+            "obj": {"type": "object"},
+            "num": {"type": "number"},
+            "weird": {"type": "null"},
+        }
+    }
+    assert validate_arguments(schema, {"flag": True, "obj": {}, "num": 1.5, "weird": 3}) is None
+    assert validate_arguments(schema, {"flag": 1}) is not None
+    assert validate_arguments(schema, {"obj": []}) is not None
+    assert validate_arguments(schema, {"num": True}) is not None
+
+
+def test_execute_reports_malformed_json_arguments():
+    executor = ToolExecutor(build_tools(fake_ctx()), max_calls=6)
+    result = executor.execute("calculate", {"_raw": "{깨짐"})
+    assert not result.ok and "JSON" in result.text

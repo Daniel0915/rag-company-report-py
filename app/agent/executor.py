@@ -7,17 +7,22 @@ from pathlib import Path
 from app.agent.tools import ToolResult, ToolSpec
 from app.agent.trace import ToolCallRecord, append_record
 
+# 모델이 낸 인자 문자열이 JSON으로 해석되지 않을 때 원문을 이 키로 감싸 실행기에 넘긴다.
+RAW_ARGUMENTS_KEY = "_raw"
+
 _TYPE_CHECKS = {
     "string": lambda v: isinstance(v, str),
     "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
     "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
     "array": lambda v: isinstance(v, list),
+    "boolean": lambda v: isinstance(v, bool),
+    "object": lambda v: isinstance(v, dict),
 }
 
 
 def _validate_value(name: str, value, schema: dict) -> str | None:
     expected = schema.get("type")
-    if expected and not _TYPE_CHECKS[expected](value):
+    if expected in _TYPE_CHECKS and not _TYPE_CHECKS[expected](value):
         return f"{name}: {expected} 타입이어야 합니다"
     if "enum" in schema and value not in schema["enum"]:
         return f"{name}: {schema['enum']} 중 하나여야 합니다"
@@ -38,6 +43,8 @@ def validate_arguments(schema: dict, arguments) -> str | None:
     """required·type·enum·minimum/maximum·additionalProperties만 검사한다. 문제가 없으면 None."""
     if not isinstance(arguments, dict):
         return "인자는 객체여야 합니다"
+    if set(arguments) == {RAW_ARGUMENTS_KEY} and RAW_ARGUMENTS_KEY not in schema.get("properties", {}):
+        return "인자가 올바른 JSON 객체가 아닙니다(JSON 형식 오류). 형식을 맞춰 다시 호출하세요"
     properties = schema.get("properties", {})
     for key in schema.get("required", []):
         if key not in arguments:
@@ -65,6 +72,11 @@ class ToolExecutor:
         self.records: list[ToolCallRecord] = []
 
     @property
+    def executed(self) -> int:
+        """실제로 실행된 도구 호출 수(거부된 호출은 세지 않는다)."""
+        return self._executed
+
+    @property
     def max_calls(self) -> int:
         return self._max_calls
 
@@ -77,7 +89,7 @@ class ToolExecutor:
         record = ToolCallRecord(
             seq=len(self.records) + 1,
             name=name,
-            arguments=arguments if isinstance(arguments, dict) else {"_raw": repr(arguments)},
+            arguments=arguments if isinstance(arguments, dict) else {RAW_ARGUMENTS_KEY: repr(arguments)},
             ok=result.ok,
             result_text=result.text,
             sources=result.sources,
