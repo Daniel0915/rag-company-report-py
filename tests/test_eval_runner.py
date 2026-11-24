@@ -198,13 +198,17 @@ def test_run_agent_item_row_shape():
 
     agent = FakeAgent()
     seen = []
-    row = run_agent_item(agent, _item(), "local", lambda item, retrieved, answer: seen.append(retrieved))
+    row = run_agent_item(
+        agent, _item(), "local",
+        lambda item, retrieved, answer, evidence_texts=None: seen.append((retrieved, evidence_texts)),
+    )
     assert row["tool_calls"] == [{"seq": 1, "name": "search_disclosures", "arguments": {"query": "매출"}, "ok": True}]
     assert row["metrics"]["tool_calls"] == 1 and row["metrics"]["hit_strict"] == 1
     assert row["metrics"]["unsupported_numbers"] == 0
     assert row["prompt_tokens"] == 1234 and row["error"] is None and row["error_stage"] is None
     assert row["retrieved"][0]["section_order"] == 3
-    assert seen[0][0].section_order == 3
+    assert seen[0][0][0].section_order == 3
+    assert seen[0][1] == ["매출액 300조 8,709억원"]
     assert agent.calls == [("매출액은?", "00126380", "local")]
 
 
@@ -214,7 +218,7 @@ def test_run_agent_item_error_stages():
     row = run_agent_item(FakeAgent(fail=True), _item(), "local", None)
     assert row["metrics"] is None and row["error_stage"] == "agent" and row["tool_calls"] == []
 
-    def bad_judge(item, retrieved, answer):
+    def bad_judge(item, retrieved, answer, evidence_texts=None):
         raise ValueError("판정 실패")
 
     row = run_agent_item(FakeAgent(), _item(), "local", bad_judge)

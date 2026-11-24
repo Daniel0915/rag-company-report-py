@@ -116,7 +116,13 @@ def run_agent_item(agent: AgentService, item: Item, provider: str, judge_fn: Cal
         row["metrics"] = score_item(
             item, retrieved, result.answer, context_texts=[r.result_text for r in result.records]
         ) | score_tools(item, result.records)
-        judged = judge_fn(item, retrieved, result.answer) if judge_fn else None
+        judged = (
+            judge_fn(
+                item, retrieved, result.answer, evidence_texts=[r.result_text for r in result.records]
+            )
+            if judge_fn
+            else None
+        )
         row["judge"] = asdict(judged) if judged else None
     except Exception as exc:  # noqa: BLE001 - 한 문항의 실패가 전체 실행을 멈추지 않게 한다
         row["metrics"] = None
