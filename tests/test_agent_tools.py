@@ -37,8 +37,9 @@ class FakeGraph:
         self.result = result
         self.queries = []
 
-    def run_read_only_query(self, cypher):
+    def run_read_only_query(self, cypher, max_rows=None, timeout=None):
         self.queries.append(cypher)
+        self.limits = (max_rows, timeout)
         return self.result
 
 
@@ -144,6 +145,27 @@ def test_query_ownership_graph_blocks_write_and_empty():
 def test_query_ownership_graph_returns_rows():
     r = _tool(fake_ctx(), "query_ownership_graph").run({"cypher": "MATCH (n) RETURN n"})
     assert r.ok and r.text == "- n=1"
+
+
+def test_query_ownership_graph_passes_cap_and_timeout():
+    graph = FakeGraph()
+    _tool(fake_ctx(graph=graph), "query_ownership_graph").run({"cypher": "MATCH (n) RETURN n"})
+    assert graph.limits == (200, 10)
+
+
+def test_query_ownership_graph_description_mentions_cap():
+    assert "200" in _tool(fake_ctx(), "query_ownership_graph").description
+
+
+def test_query_ownership_graph_error_includes_class_and_first_line():
+    class Boom(FakeGraph):
+        def run_read_only_query(self, cypher, max_rows=None, timeout=None):
+            raise RuntimeError("Invalid input 'RETRN': expected RETURN\n  line 2 detail" + "x" * 500)
+
+    r = _tool(fake_ctx(graph=Boom()), "query_ownership_graph").run({"cypher": "MATCH (n) RETRN n"})
+    assert not r.ok
+    assert "RuntimeError" in r.text and "Invalid input 'RETRN'" in r.text
+    assert "line 2" not in r.text and len(r.text) < 300
 
 
 def test_web_search_sources_and_tavily_error():

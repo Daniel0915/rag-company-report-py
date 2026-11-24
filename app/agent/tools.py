@@ -181,14 +181,21 @@ def _list_recent_disclosures(ctx: ToolContext, args: dict) -> ToolResult:
     return ToolResult.of(True, "\n".join(lines))
 
 
+GRAPH_MAX_ROWS = 200
+GRAPH_TIMEOUT_SECONDS = 10
+
+
 def _query_ownership_graph(ctx: ToolContext, args: dict) -> ToolResult:
     cypher = args["cypher"].strip()
     if WRITE_CLAUSE.search(cypher):
         return _fail("읽기 전용 MATCH 쿼리만 허용됩니다")
     try:
-        result = ctx.graph.run_read_only_query(cypher)
-    except Exception as e:  # noqa: BLE001 - 잘못된 Cypher는 모델이 고칠 수 있게 결과로 돌려준다
-        return _fail(f"그래프 쿼리 실패: {type(e).__name__}")
+        result = ctx.graph.run_read_only_query(
+            cypher, max_rows=GRAPH_MAX_ROWS, timeout=GRAPH_TIMEOUT_SECONDS
+        )
+    except Exception as e:  # noqa: BLE001 - 잘못된 Cypher는 모델이 고칠 수 있게 오류 첫 줄까지 돌려준다
+        first_line = (str(e).strip().splitlines() or [""])[0][:200]
+        return _fail(f"그래프 쿼리 실패: {type(e).__name__}: {first_line}")
     return ToolResult.of(True, result if result is not None else NO_RESULT)
 
 
@@ -286,7 +293,7 @@ def build_tools(ctx: ToolContext) -> list[ToolSpec]:
             "query_ownership_graph",
             "Neo4j 그래프에서 지분공시 제출인 관계를 조회하는 읽기 전용 Cypher를 실행한다. "
             "MATCH, WHERE, RETURN, ORDER BY, LIMIT, count()만 허용하며 쓰기 구문은 거부된다. "
-            "집계·랭킹·교집합·역방향 조회에 쓴다.\n\n"
+            "집계·랭킹·교집합·역방향 조회에 쓴다. 결과는 최대 200행, 실행 시간은 10초로 제한된다.\n\n"
             f"스키마:\n{GRAPH_SCHEMA_TEXT}\n\n현재 대상 기업의 corp_code: '{ctx.corp_code}'",
             _schema({"cypher": {"type": "string", "description": "읽기 전용 Cypher 쿼리"}}, ["cypher"]),
             lambda args: _query_ownership_graph(ctx, args),
