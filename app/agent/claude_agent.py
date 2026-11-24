@@ -16,6 +16,7 @@ from app.agent.context import REPO_ROOT
 from app.agent.tools import TOOL_NAMES
 from app.agent.trace import ToolCallRecord, read_records
 from app.config import Settings
+from app.llm.claude_cli import subscription_env
 
 MCP_SERVER_NAME = "company"
 
@@ -104,6 +105,7 @@ def run_claude_agent(
                 text=True,
                 timeout=timeout,
                 cwd=workdir,
+                env=subscription_env(),
             )
         except FileNotFoundError as e:
             raise RuntimeError("claude CLI 실행 실패 (설치/PATH 확인 필요)") from e

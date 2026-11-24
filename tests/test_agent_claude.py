@@ -101,3 +101,39 @@ def test_config_file_is_private():
 
     run_claude_agent("q", "sys", "00126380", _settings(), runner=runner)
     assert modes["mode"] == 0o600
+
+
+def _set_api_env(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "tok-test")
+
+
+def test_run_claude_agent_strips_api_credentials(monkeypatch):
+    _set_api_env(monkeypatch)
+    seen = {}
+
+    def runner(command, **kwargs):
+        seen["env"] = kwargs["env"]
+        return subprocess.CompletedProcess(command, 0, '{"result": "x", "is_error": false}', "")
+
+    run_claude_agent("q", "sys", "00126380", _settings(), runner=runner)
+    assert "ANTHROPIC_API_KEY" not in seen["env"]
+    assert "ANTHROPIC_AUTH_TOKEN" not in seen["env"]
+    assert "PATH" in seen["env"]
+
+
+def test_claude_cli_client_strips_api_credentials(monkeypatch):
+    from app.llm import claude_cli
+
+    _set_api_env(monkeypatch)
+    seen = {}
+
+    def fake_run(command, **kwargs):
+        seen["env"] = kwargs["env"]
+        return subprocess.CompletedProcess(command, 0, "답\n", "")
+
+    monkeypatch.setattr(claude_cli.subprocess, "run", fake_run)
+    assert claude_cli.ClaudeCliClient(_settings()).generate("s", "u") == "답"
+    assert "ANTHROPIC_API_KEY" not in seen["env"]
+    assert "ANTHROPIC_AUTH_TOKEN" not in seen["env"]
+    assert "PATH" in seen["env"]

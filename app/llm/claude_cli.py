@@ -6,10 +6,19 @@ ANTHROPIC_API_KEY(종량제 API) 대신 claude.ai 구독 계정 로그인 기반
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 
 from app.config import Settings
+
+
+def subscription_env() -> dict[str, str]:
+    """API 키 계열 변수를 뺀 환경. 있으면 -p 모드가 종량제 API 과금으로 바뀌므로 구독 로그인만 쓰게 한다."""
+    return {
+        k: v for k, v in os.environ.items()
+        if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+    }
 
 
 class ClaudeCliClient:
@@ -35,6 +44,7 @@ class ClaudeCliClient:
                 text=True,
                 timeout=self._timeout,
                 cwd=tempfile.gettempdir(),
+                env=subscription_env(),
             )
         except FileNotFoundError as e:
             raise RuntimeError("claude CLI 실행 실패 (설치/PATH 확인 필요)") from e
