@@ -125,7 +125,7 @@ class CompanyChatService:
             raise ValueError("corpCode는 필수입니다")
         llm = _normalize_provider(provider)
 
-        search_query = self._rewrite_query(question, history, llm) if history else question
+        search_query = self.rewrite_query(question, history, llm) if history else question
         context = self.retrieve(search_query, corp_code, top_k, news_query=question)
         answer = self.answer(question, corp_code, context, provider, search_query=search_query)
 
@@ -195,7 +195,7 @@ class CompanyChatService:
             return Answer(text=reply.content, prompt_tokens=reply.prompt_eval_count)
         return Answer(text=self._complete(llm, system_prompt, question), prompt_tokens=None)
 
-    def _rewrite_query(self, question: str, history: list[ChatTurnDto], llm: str) -> str:
+    def rewrite_query(self, question: str, history: list[ChatTurnDto], llm: str) -> str:
         history_text = "\n".join(
             ("사용자: " if turn.role == "user" else "어시스턴트: ") + turn.content
             for turn in history

@@ -116,3 +116,46 @@ def test_index_runner_value_error_is_not_masked_as_422():
     res = TestClient(app, raise_server_exceptions=False).post("/api/company-report/index")
 
     assert res.status_code == 500
+
+
+def _chat_client(chat_service=None, agent_service=None) -> TestClient:
+    app = FastAPI()
+    app.include_router(company_report.router)
+    container = SimpleNamespace(chat_service=chat_service, agent_service=agent_service)
+    app.dependency_overrides[get_container] = lambda: container
+    return TestClient(app)
+
+
+def test_non_agent_response_json_unchanged():
+    from app.models import ChatResponse, SourceItem
+
+    chat = MagicMock()
+    chat.chat.return_value = ChatResponse(
+        answer="a",
+        sources=[SourceItem(corpName="c", reportNm="r", rceptNo="1", sectionTitle="s", docType=None)],
+    )
+    res = _chat_client(chat_service=chat).post(
+        "/api/company-report/chat", json={"question": "q", "corpCode": "00126380"}
+    )
+    assert set(res.json()) == {"answer", "sources"}
+    assert set(res.json()["sources"][0]) == {"corpName", "reportNm", "rceptNo", "sectionTitle", "docType"}
+    assert res.json()["sources"][0]["docType"] is None
+
+
+def test_agent_request_routes_to_agent_service():
+    from app.models import ChatResponse, ToolCallTrace
+
+    agent = MagicMock()
+    agent.chat.return_value = ChatResponse(
+        answer="a", sources=[],
+        toolCalls=[ToolCallTrace(name="calculate", arguments={"expression": "1+1"}, ok=True, summary="2")],
+    )
+    chat = MagicMock()
+    res = _chat_client(chat_service=chat, agent_service=agent).post(
+        "/api/company-report/chat",
+        json={"question": "q", "corpCode": "00126380", "agent": True, "provider": "claude"},
+    )
+    assert res.status_code == 200
+    assert res.json()["toolCalls"][0]["name"] == "calculate"
+    agent.chat.assert_called_once_with("q", "00126380", [], "claude")
+    chat.chat.assert_not_called()

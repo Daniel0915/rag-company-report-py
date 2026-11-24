@@ -48,10 +48,16 @@ def index(
     return summary.results
 
 
-@router.post("/api/company-report/chat", response_model=ChatResponse)
+@router.post(
+    "/api/company-report/chat", response_model=ChatResponse, response_model_exclude_unset=True
+)
 def chat(request: ChatRequest, container: Container = Depends(get_container)) -> ChatResponse:
     top_k = 4 if request.topK <= 0 else min(max(request.topK, 1), 20)
     try:
+        if request.agent:
+            return container.agent_service.chat(
+                request.question, request.corpCode, request.history, request.provider
+            )
         return container.chat_service.chat(
             request.question, request.corpCode, top_k, request.history, request.provider
         )

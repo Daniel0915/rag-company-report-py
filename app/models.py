@@ -23,6 +23,7 @@ class ChatRequest(BaseModel):
     history: list[ChatTurnDto] = Field(default_factory=list)
     topK: int = 0
     provider: str | None = None
+    agent: bool = False
 
 
 class SourceItem(BaseModel):
@@ -33,9 +34,19 @@ class SourceItem(BaseModel):
     docType: str | None = None
 
 
+class ToolCallTrace(BaseModel):
+    """에이전트가 부른 도구 한 번의 기록. summary는 결과 텍스트 앞부분."""
+
+    name: str
+    arguments: dict
+    ok: bool
+    summary: str
+
+
 class ChatResponse(BaseModel):
     answer: str
     sources: list[SourceItem]
+    toolCalls: list[ToolCallTrace] | None = None
 
 
 class IndexResult(BaseModel):

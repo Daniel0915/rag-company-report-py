@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from fastapi import Request
 from neo4j import Driver, GraphDatabase
 
+from app.agent.service import AgentService
 from app.config import Settings, get_settings
 from app.dart.client import DartApiClient
 from app.ingest.guard import count_disclosure_chunks
@@ -46,6 +47,8 @@ class Container:
     chunk_service: IndexedChunkService
     admin_service: AdminDocumentService
     chat_service: CompanyChatService
+    agent_ollama: OllamaClient
+    agent_service: AgentService
 
     @classmethod
     def build(cls) -> "Container":
@@ -55,6 +58,7 @@ class Container:
         )
         ollama = OllamaClient(settings)
         claude = ClaudeCliClient(settings)
+        agent_ollama = OllamaClient(settings, options={"num_ctx": settings.agent_ollama_num_ctx})
         dart = DartApiClient(settings)
         search_scraper = NaverSearchScraper()
         article_scraper = NaverArticleScraper()
@@ -66,6 +70,8 @@ class Container:
         disclosure_graph = DisclosureGraphService(driver)
         news_graph = NewsGraphService(driver)
         index_service = CompanyReportIndexService(dart, registry, disclosure_graph, ledger)
+
+        chat_service = CompanyChatService(ollama, claude, registry, disclosure_graph)
 
         return cls(
             settings=settings,
@@ -96,13 +102,14 @@ class Container:
                 settings.admin_document_registry_file,
                 settings.admin_document_upload_dir,
             ),
-            chat_service=CompanyChatService(
-                ollama, claude, registry, disclosure_graph
-            ),
+            chat_service=chat_service,
+            agent_ollama=agent_ollama,
+            agent_service=AgentService(settings, chat_service, agent_ollama),
         )
 
     def close(self) -> None:
         self.ollama.close()
+        self.agent_ollama.close()
         self.dart.close()
         self.search_scraper.close()
         self.article_scraper.close()
