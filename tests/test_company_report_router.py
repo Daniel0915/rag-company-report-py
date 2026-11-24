@@ -159,3 +159,45 @@ def test_agent_request_routes_to_agent_service():
     assert res.json()["toolCalls"][0]["name"] == "calculate"
     agent.chat.assert_called_once_with("q", "00126380", [], "claude")
     chat.chat.assert_not_called()
+
+
+def _agent_post(agent):
+    return _chat_client(agent_service=agent).post(
+        "/api/company-report/chat", json={"question": "q", "corpCode": "00126380", "agent": True}
+    )
+
+
+def test_agent_failure_returns_502_without_leaking_message():
+    agent = MagicMock()
+    agent.chat.side_effect = RuntimeError("claude CLI 응답이 180초 안에 오지 않았습니다 secret")
+
+    res = _agent_post(agent)
+
+    assert res.status_code == 502
+    assert res.json()["detail"] == "에이전트 실행 실패"
+    assert "secret" not in res.text
+
+
+def test_agent_value_error_still_returns_400():
+    agent = MagicMock()
+    agent.chat.side_effect = ValueError("corpCode는 필수입니다")
+
+    assert _agent_post(agent).status_code == 400
+
+
+def test_agent_web_source_serializes_all_source_keys():
+    from app.models import ChatResponse, SourceItem
+
+    agent = MagicMock()
+    agent.chat.return_value = ChatResponse(
+        answer="a",
+        sources=[SourceItem(
+            corpName=None, reportNm="기사", rceptNo="http://x", sectionTitle=None, docType="WEB"
+        )],
+        toolCalls=[],
+    )
+
+    source = _agent_post(agent).json()["sources"][0]
+
+    assert set(source) == {"corpName", "reportNm", "rceptNo", "sectionTitle", "docType"}
+    assert source["docType"] == "WEB"
