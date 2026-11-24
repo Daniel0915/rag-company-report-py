@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     claude_model: str = "sonnet"
     claude_timeout_seconds: int = 60
 
+    # 에이전트(도구 호출)
+    tavily_api_key: str = ""
+    tavily_base_url: str = "https://api.tavily.com"
+    agent_ollama_num_ctx: int = 16384
+    agent_claude_timeout_seconds: int = 180
+    agent_max_tool_calls: int = 6
+
     # 사이드카 파일 / 업로드 경로
     company_report_index_file: str = "data/company-report-index.json"
     admin_document_registry_file: str = "data/admin-documents.json"

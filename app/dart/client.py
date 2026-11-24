@@ -91,6 +91,27 @@ class DartApiClient:
         xml = entries.get("CORPCODE.xml") or next(iter(entries.values()))
         return self._parse_corp_code_xml(xml)
 
+    def fetch_key_accounts(self, corp_code: str, year: int, reprt_code: str) -> list[dict]:
+        """단일회사 주요계정(fnlttSinglAcnt.json). reprt_code: 11011=사업, 11012=반기, 11013=1분기, 11014=3분기.
+
+        데이터가 없으면(status 013) 빈 목록, 그 밖의 오류는 DartApiError.
+        """
+        params = {
+            "crtfc_key": self._api_key,
+            "corp_code": corp_code,
+            "bsns_year": str(year),
+            "reprt_code": reprt_code,
+        }
+        raw = self._with_retry(lambda: self._client.get("/fnlttSinglAcnt.json", params=params).json())
+        if raw is None:
+            raise DartApiError("UNKNOWN", "fnlttSinglAcnt.json 응답이 비어 있습니다")
+        status = raw.get("status")
+        if status == "013":
+            return []
+        if status != "000":
+            raise DartApiError(status or "UNKNOWN", raw.get("message", ""))
+        return raw.get("list", [])
+
     def _with_retry(self, call: Callable[[], T]) -> T:
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
