@@ -15,7 +15,6 @@ from app.ingest.guard import count_disclosure_chunks
 from app.ingest.ledger import IndexLedger
 from app.ingest.runner import IngestRunner
 from app.llm.claude_cli import ClaudeCliClient
-from app.llm.gemini import GeminiClient
 from app.llm.ollama import OllamaClient
 from app.naver.article_scraper import NaverArticleScraper
 from app.naver.search_scraper import NaverSearchScraper
@@ -34,7 +33,6 @@ class Container:
     settings: Settings
     driver: Driver
     ollama: OllamaClient
-    gemini: GeminiClient
     claude: ClaudeCliClient
     dart: DartApiClient
     search_scraper: NaverSearchScraper
@@ -56,7 +54,6 @@ class Container:
             settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password)
         )
         ollama = OllamaClient(settings)
-        gemini = GeminiClient(settings)
         claude = ClaudeCliClient(settings)
         dart = DartApiClient(settings)
         search_scraper = NaverSearchScraper()
@@ -74,7 +71,6 @@ class Container:
             settings=settings,
             driver=driver,
             ollama=ollama,
-            gemini=gemini,
             claude=claude,
             dart=dart,
             search_scraper=search_scraper,
@@ -101,13 +97,12 @@ class Container:
                 settings.admin_document_upload_dir,
             ),
             chat_service=CompanyChatService(
-                ollama, gemini, claude, registry, disclosure_graph
+                ollama, claude, registry, disclosure_graph
             ),
         )
 
     def close(self) -> None:
         self.ollama.close()
-        self.gemini.close()
         self.dart.close()
         self.search_scraper.close()
         self.article_scraper.close()

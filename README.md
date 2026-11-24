@@ -5,14 +5,14 @@ DART 전자공시(사업/반기/분기보고서 + 지분공시)와 관련 뉴스
 불필요)에서 가져와 기업별 Neo4j 벡터 인덱스에 함께 저장합니다. 지분공시 제출인과
 뉴스 기사 관계는 그래프로도 저장해서, 벡터 검색(Vector Retriever)만으로 안 되는
 집계·랭킹 질문은 LLM이 즉석에서 만든 Cypher(Text2Cypher)로 답합니다. 로컬(Ollama)/
-Gemini/Claude 중 답변 모델을 골라 비교할 수 있고, 답변은 마크다운으로 렌더링됩니다.
+Claude 중 답변 모델을 골라 비교할 수 있고, 답변은 마크다운으로 렌더링됩니다.
 
 ## 사용 화면
 
-![답변 모델(로컬/Gemini/Claude) 토글, 검색 범위(topK) 조절, 마크다운으로 렌더링된 답변(표/목록/굵게)](docs/screenshots/02-chat-controls.png)
+![답변 모델(로컬/Claude) 토글, 검색 범위(topK) 조절, 마크다운으로 렌더링된 답변(표/목록/굵게)](docs/screenshots/02-chat-controls.png)
 
 기업을 고르고 질문하면 답변과 함께 근거 공시(회사명/보고서명/접수번호/섹션)를
-보여줍니다. 답변 모델(로컬/Gemini/Claude)과 검색 범위(topK)를 조절할 수 있고,
+보여줍니다. 답변 모델(로컬/Claude)과 검색 범위(topK)를 조절할 수 있고,
 표/목록이 포함된 답변은 마크다운으로 렌더링됩니다.
 
 ![응답을 기다리는 동안 표시되는 타이핑 인디케이터](docs/screenshots/04-response-loading.png)
@@ -41,7 +41,7 @@ flowchart LR
     FE["프론트엔드\n채팅 · 관리자 페이지"]
     BE["FastAPI 백엔드\n색인 · 검색 · 채팅"]
     NEO4J[("Neo4j\n벡터 인덱스 + 그래프")]
-    LLM[("LLM\nOllama · Gemini · Claude")]
+    LLM[("LLM\nOllama · Claude")]
     SRC[("DART 공시 · 네이버 뉴스")]
 
     FE <-- "질문 / 답변" --> BE
@@ -60,7 +60,7 @@ flowchart LR
   그래프 질문이면 LLM이 즉석에서 Cypher를 생성해 실행(Text2Cypher), 실패하면 고정
   조회로 폴백합니다.
 - **③ 답변**: 대화 히스토리가 있으면 먼저 후속 질문을 독립형으로 재작성한 뒤, 위
-  검색 결과를 근거로 로컬(Ollama)/Gemini/Claude 중 선택한 모델이 답변을 생성합니다.
+  검색 결과를 근거로 로컬(Ollama)/Claude 중 선택한 모델이 답변을 생성합니다.
 
 ## 그래프 DB 스키마
 
@@ -134,14 +134,14 @@ graph LR
 
 - **Backend**: Python 3.11+, FastAPI + Uvicorn, Pydantic Settings(`.env` 설정)
 - **LLM/임베딩**: Ollama (`qwen2.5:3b` 채팅, `bge-m3` 임베딩) 기본, 선택적으로
-  Google Gemini(`httpx`로 generateContent REST 직접 호출) 또는 Claude(로그인된
+  Claude(로그인된
   `claude -p` CLI를 서브프로세스로 호출 — API 키 없이 claude.ai 구독 계정 그대로 사용)
 - **벡터스토어**: Neo4j 공식 Python 드라이버로 직접 구현(기업마다 별도 라벨/인덱스로
   분리), 지분공시·뉴스 그래프도 같은 Neo4j에 저장. 청킹은 `tiktoken` 토큰 기준
 - **문서 파싱**: 공시 XML은 `lxml`, PDF는 `pypdf`
 - **뉴스 수집**: `httpx` + BeautifulSoup으로 네이버 뉴스 검색결과/기사 페이지를 직접
   파싱 (Selenium·공식 API 키 불필요)
-- **외부 API**: DART(전자공시시스템) Open API, Google Gemini API(선택)
+- **외부 API**: DART(전자공시시스템) Open API
 - **Frontend**: Vue 3 + TypeScript + Vite, 대화 히스토리는 브라우저 IndexedDB에 저장.
   답변은 `marked`로 마크다운 파싱 후 `DOMPurify`로 sanitize해 렌더링. 빌드 결과는
   `static/`에 커밋되어 있어 Node 없이도 바로 실행됩니다.
@@ -196,9 +196,6 @@ cp .env.example .env
 ```
 
 - `DART_API_KEY` (필수): [DART Open API](https://opendart.fss.or.kr)에서 발급
-- `GEMINI_API_KEY` (선택): 채팅에서 "Gemini" 모델을 쓸 때만 필요.
-  [Google AI Studio](https://aistudio.google.com/apikey)에서 발급(`AIzaSy...` 형태).
-  없으면 Gemini 선택 시 에러가 나고, 로컬(Ollama)만으로도 정상 동작합니다.
 - `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD`, `OLLAMA_BASE_URL` /
   `OLLAMA_CHAT_MODEL` / `OLLAMA_EMBEDDING_MODEL`: 기본값과 다를 때만 수정
 
@@ -245,7 +242,7 @@ cp -r ../src/main/resources/static ../../rag-company-report-py/static
 1. 기업 선택 후 "최신 공시 가져오기"로 최근 2년치 공시(정기공시 + 지분공시) 색인
 2. 관리자 페이지(`/admin.html`)에서 "최신 뉴스 가져오기"로 워치리스트 기업의 최신
    뉴스도 함께 색인 (`POST /api/admin/news/fetch`)
-3. 채팅창 상단에서 답변 모델(로컬/Gemini/Claude)과 검색 범위(topK) 선택
+3. 채팅창 상단에서 답변 모델(로컬/Claude)과 검색 범위(topK) 선택
 4. 궁금한 내용 질문 (예: "사업의 개요 알려줘", "최근 관련 뉴스 알려줘") — 이전 대화가
    있으면 자동으로 참고됨
 5. 답변 하단의 "출처 (공시·뉴스)"에서 근거가 된 보고서/기사 확인 — 뉴스는 "뉴스" 태그와
@@ -356,10 +353,10 @@ python -m app.eval compare eval/runs/A.json eval/runs/B.json
   origin: manual
 ```
 
-**실행 옵션**: `--provider`는 `local`(기본), `gemini`, `claude`입니다. `--corp CODE`는 그 기업의
+**실행 옵션**: `--provider`는 `local`(기본), `claude`입니다. `--corp CODE`는 그 기업의
 문항만 돌립니다. Ollama는 결과가 흔들리지 않도록 기본으로 temperature 0, seed 42로 호출하며
 `--temperature`, `--seed`로 바꿀 수 있습니다. 쓴 값은 결과 파일에 남고, 채팅 API의 호출에는
-영향이 없습니다. Gemini와 Claude는 seed를 고정할 수 없어 비교 결과가 조금 흔들립니다.
+영향이 없습니다. Claude는 seed를 고정할 수 없어 비교 결과가 조금 흔들립니다.
 `--judge claude`는 Claude가 답변의 근거 충실도와 정확성을 추가로 채점하는 옵션입니다(기본은
 규칙 채점만). 답변 provider도 `claude`이면 자기 답을 자기가 채점한다는 경고가 나옵니다.
 
@@ -407,7 +404,7 @@ YAML 주석은 보존되지 않습니다.
 프론트엔드를 그대로 씁니다. `POST /chat`의 `history`는 프론트엔드(IndexedDB)가
 보관하는 최근 대화 몇 턴(`[{role, content}]`)이며, 있으면 백엔드가 후속 질문을
 독립형 질문으로 재작성한 뒤 검색합니다. `provider`는 `"local"`(기본값, Ollama),
-`"gemini"`(`"cloud"`도 허용), `"claude"`(로그인된 `claude -p` CLI) 중 하나. 응답의
+`"claude"`(로그인된 `claude -p` CLI) 중 하나이고, 그 외 값은 `"local"`로 처리합니다. 응답의
 `sources[].docType`이 `"NEWS"`면 해당 출처의 `rceptNo`가 공시 접수번호가 아니라
 뉴스 기사 URL입니다.
 
@@ -444,7 +441,6 @@ app/
 │   └── article_scraper.py        # 기사 페이지 본문/제목/언론사/발행일 크롤링
 ├── llm/
 │   ├── ollama.py                 # Ollama 채팅 + 임베딩
-│   ├── gemini.py                 # Google Gemini generateContent REST 직접 호출
 │   └── claude_cli.py             # 로그인된 `claude -p` CLI를 서브프로세스로 호출
 └── dart/
     ├── client.py                 # DART Open API 클라이언트 (공시검색/원본파일 다운로드)
@@ -468,7 +464,7 @@ data/                             # 런타임 사이드카 JSON·업로드 파�
 - DART `document.xml` 원본만 지원(`pdf.do`는 API로 안정적으로 못 받아 미지원).
 - 대화 히스토리는 브라우저 IndexedDB에 기업별로 저장(서버 미저장) — 브라우저/기기가
   바뀌면 히스토리는 안 보입니다.
-- qwen2.5:3b는 소형 모델이라 답변 품질이 완벽하지 않을 수 있어 Gemini/Claude와
+- qwen2.5:3b는 소형 모델이라 답변 품질이 완벽하지 않을 수 있어 Claude와
   비교용으로 씁니다. Claude 옵션은 매 질문마다 CLI를 새로 띄워 느리고(수 초~수십 초,
   타임아웃 `CLAUDE_TIMEOUT_SECONDS` 기본 60초), API 과금이 아니라 로그인된 claude.ai
   계정의 사용량을 그대로 씁니다. 모델은 `CLAUDE_MODEL`(기본 `sonnet`)로 바꿀 수 있습니다.

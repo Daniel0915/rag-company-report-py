@@ -26,11 +26,6 @@ class Settings(BaseSettings):
     dart_base_url: str = "https://opendart.fss.or.kr/api"
     dart_api_key: str = ""
 
-    # Gemini
-    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
-    gemini_api_key: str = ""
-    gemini_model: str = "gemini-flash-latest"
-
     # Claude CLI (구독 로그인 기반, API 키 사용 안 함)
     claude_model: str = "sonnet"
     claude_timeout_seconds: int = 60

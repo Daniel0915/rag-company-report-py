@@ -17,7 +17,6 @@ from app.eval.generate import DEFAULT_QUOTA, EVAL_CLAUDE_TIMEOUT_SECONDS, genera
 from app.eval.judge import judge
 from app.eval.runner import build_run_file, format_summary, git_commit, index_snapshot, run, run_file_name
 from app.llm.claude_cli import ClaudeCliClient
-from app.llm.gemini import GeminiClient
 from app.llm.ollama import OllamaClient
 from app.services.company_chat import CompanyChatService
 from app.services.disclosure_graph import DisclosureGraphService
@@ -45,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("--dataset", default=DEFAULT_DATASET)
 
     p_run = sub.add_parser("run", help="정답셋을 실제 채팅 경로로 돌려 채점하고 결과 파일을 남긴다")
-    p_run.add_argument("--provider", choices=["local", "gemini", "claude"], default="local")
+    p_run.add_argument("--provider", choices=["local", "claude"], default="local")
     p_run.add_argument("--top-k", type=int, default=6)
     p_run.add_argument("--judge", choices=["none", "claude"], default="none")
     p_run.add_argument("--temperature", type=float, default=0)
@@ -96,7 +95,6 @@ def _cmd_generate(args: argparse.Namespace) -> int:
 def _chat_model(settings, provider: str) -> str:
     return {
         "local": settings.ollama_chat_model,
-        "gemini": settings.gemini_model,
         "claude": settings.claude_model,
     }[provider]
 
@@ -127,7 +125,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
     try:
         chat = CompanyChatService(
             ollama,
-            GeminiClient(settings),
             ClaudeCliClient(settings),
             CompanyVectorStoreRegistry(driver, ollama, settings),
             DisclosureGraphService(driver),

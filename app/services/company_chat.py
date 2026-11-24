@@ -4,7 +4,7 @@ DART 공시 원문(사업/반기/분기보고서 + 지분공시)과 뉴스를 �
 벡터 검색으로는 안 되는 지분 관계(제출인)는 DisclosureGraphService의 그래프에서 보강한다.
 
 그래프 보강은 집계/랭킹/교집합처럼 고정 조회 하나로 못 푸는 질문일 때, 답변에 쓰기로
-선택된 provider(local/gemini/claude)가 그 자리에서 Cypher를 생성해(Text2Cypher) 읽기 전용으로
+선택된 provider(local/claude)가 그 자리에서 Cypher를 생성해(Text2Cypher) 읽기 전용으로
 실행하는 방식으로 확장된다. 생성 실패/쓰기 구문 포함/실행 오류 시에는 벡터 검색으로 이미
 뽑힌 청크(rcept_no/article_url)에 앵커된 고정 Cypher(VectorCypher)로 안전하게 폴백한다.
 
@@ -19,7 +19,6 @@ import re
 from dataclasses import dataclass
 
 from app.llm.claude_cli import ClaudeCliClient
-from app.llm.gemini import GeminiClient
 from app.llm.ollama import OllamaClient
 from app.models import ChatResponse, ChatTurnDto, GraphExpansionRow, SourceItem
 from app.services.disclosure_graph import DisclosureGraphService
@@ -104,13 +103,11 @@ class CompanyChatService:
     def __init__(
         self,
         ollama: OllamaClient,
-        gemini: GeminiClient,
         claude: ClaudeCliClient,
         registry: CompanyVectorStoreRegistry,
         graph_service: DisclosureGraphService,
     ) -> None:
         self._ollama = ollama
-        self._gemini = gemini
         self._claude = claude
         self._registry = registry
         self._graph = graph_service
@@ -123,7 +120,7 @@ class CompanyChatService:
         history: list[ChatTurnDto],
         provider: str | None,
     ) -> ChatResponse:
-        """provider: "local"(Ollama, 기본값), "gemini", 또는 "claude"(claude CLI)."""
+        """provider: "local"(Ollama, 기본값) 또는 "claude"(claude CLI)."""
         if not corp_code or not corp_code.strip():
             raise ValueError("corpCode는 필수입니다")
         llm = _normalize_provider(provider)
@@ -196,8 +193,6 @@ class CompanyChatService:
         return rewritten.strip() if rewritten and rewritten.strip() else question
 
     def _complete(self, llm: str, system_prompt: str, user_prompt: str) -> str:
-        if llm == "gemini":
-            return self._gemini.generate(system_prompt, user_prompt)
         if llm == "claude":
             return self._claude.generate(system_prompt, user_prompt)
         return self._ollama.generate(system_prompt, user_prompt)
@@ -278,8 +273,6 @@ class CompanyChatService:
 
 
 def _normalize_provider(provider: str | None) -> str:
-    if provider in ("gemini", "cloud"):
-        return "gemini"
     if provider == "claude":
         return "claude"
     return "local"

@@ -64,7 +64,7 @@ class FakeClaude:
 
 def _service(docs):
     registry = FakeRegistry(docs)
-    service = CompanyChatService(FakeOllama(), FakeClaude(), FakeClaude(), registry, FakeGraph())
+    service = CompanyChatService(FakeOllama(), FakeClaude(), registry, FakeGraph())
     return service, registry
 
 
