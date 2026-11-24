@@ -50,6 +50,17 @@ class OllamaClient:
             prompt_eval_count=data.get("prompt_eval_count"),
         )
 
+    def chat_messages(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
+        """메시지 목록 그대로 /api/chat을 부르고 응답 JSON을 돌려준다(도구 호출 루프용)."""
+        body: dict = {"model": self._chat_model, "messages": messages, "stream": False}
+        if tools:
+            body["tools"] = tools
+        if self._options is not None:
+            body["options"] = self._options
+        response = self._client.post("/api/chat", json=body)
+        response.raise_for_status()
+        return response.json()
+
     def embed(self, texts: list[str]) -> list[list[float]]:
         """여러 텍스트를 한 번에 임베딩한다. 반환 순서는 입력 순서와 같다."""
         if not texts:

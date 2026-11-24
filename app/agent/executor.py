@@ -64,6 +64,14 @@ class ToolExecutor:
         self._seen: set[tuple[str, str]] = set()
         self.records: list[ToolCallRecord] = []
 
+    @property
+    def max_calls(self) -> int:
+        return self._max_calls
+
+    @property
+    def specs(self) -> list[ToolSpec]:
+        return list(self._specs.values())
+
     def execute(self, name: str, arguments: dict) -> ToolResult:
         result = self._run(name, arguments)
         record = ToolCallRecord(
