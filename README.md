@@ -417,7 +417,7 @@ YAML 주석은 보존되지 않습니다.
 | `search_disclosures` | 공시 원문·뉴스 청크 벡터 검색. `doc_type=NEWS`면 뉴스만 |
 | `get_financials` | DART 주요계정(매출액, 영업이익, 당기순이익 등) 조회. `year`, `report`(annual/half/q1/q3) 필수 |
 | `list_recent_disclosures` | 최근 공시 목록. `since`, 유형(A~J), `limit` 필터 |
-| `query_ownership_graph` | 지분공시 그래프에 읽기 전용 Cypher 실행(쓰기 구문은 거부) |
+| `query_ownership_graph` | 지분공시 그래프에 읽기 전용 Cypher 실행(쓰기 구문은 거부, 결과 최대 200행, 실행 10초 제한) |
 | `calculate` | 사칙연산과 괄호만 계산(증감률 등) |
 | `web_search` | Tavily 웹검색. 공시·뉴스에 없는 정보에만 쓰도록 프롬프트로 안내 |
 
@@ -438,7 +438,8 @@ curl -X POST http://localhost:8080/api/company-report/chat \
 `docType`이 `"WEB"`인 항목으로 들어가며, 이때 `reportNm`은 페이지 제목, `rceptNo`는 URL입니다.
 `history`가 있으면 후속 질문을 독립형 질문으로 재작성한 뒤 에이전트에 넘깁니다.
 `corpCode`가 비면 400, 에이전트 실행이 실패하면(모델/CLI 오류, 시간 초과 등) HTTP 502와
-`"에이전트 실행 실패"`를 돌려줍니다.
+`"에이전트 실행 실패"`를 돌려줍니다. 에이전트 모드에서는 `topK`를 쓰지 않으며 값을 줘도
+무시됩니다(검색 청크 수는 모델이 도구 인자로 정합니다).
 
 현재 채팅 화면은 `agent`를 보내지 않습니다. 에이전트 모드는 API 직접 호출이나 평가
 CLI로만 쓸 수 있습니다.
@@ -480,7 +481,10 @@ python -m app.eval compare eval/runs/A.json eval/runs/B.json
 `--agent`는 고정 경로 대신 에이전트 경로로 정답셋을 돌립니다(`--top-k`는 쓰지 않음).
 `--corp`, `--judge`, `--temperature`, `--seed`, `--provider`는 그대로 쓸 수 있고, 결과
 파일 이름 끝에 `_agent`가 붙으며 문항마다 `tool_calls`(seq, name, arguments, ok)가 기록됩니다.
-검색 지표(`hit_*`, `mrr`)는 `search_disclosures`가 돌려준 청크로 셉니다. 새 지표는 위
+검색 지표(`hit_*`, `mrr`)는 `search_disclosures`가 돌려준 청크로 셉니다. 검색을 여러 번 하면
+청크 목록을 이어 붙여 `mrr`을 계산하므로 고정 경로의 단일 top-k 목록과 엄밀히 같은 기준이
+아닙니다(`hit_strict`/`hit_loose`는 비교할 수 있습니다). `--judge`의 근거는 `search_disclosures`
+청크뿐 아니라 모든 도구 결과 텍스트입니다. 새 지표는 위
 답변 평가 절의 표(`tool_selection`, `unnecessary_web`, `tool_errors`, `tool_calls`)를 보세요.
 
 ## API 엔드포인트
