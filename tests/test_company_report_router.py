@@ -178,11 +178,25 @@ def test_agent_failure_returns_502_without_leaking_message():
     assert "secret" not in res.text
 
 
-def test_agent_value_error_still_returns_400():
+def test_agent_empty_corp_code_returns_400_without_calling_agent():
     agent = MagicMock()
-    agent.chat.side_effect = ValueError("corpCode는 필수입니다")
+    res = _chat_client(agent_service=agent).post(
+        "/api/company-report/chat", json={"question": "q", "corpCode": "  ", "agent": True}
+    )
+    assert res.status_code == 400
+    assert res.json()["detail"] == "corpCode는 필수입니다"
+    agent.chat.assert_not_called()
 
-    assert _agent_post(agent).status_code == 400
+
+def test_agent_internal_value_error_maps_to_502_without_internal_text():
+    agent = MagicMock()
+    agent.chat.side_effect = ValueError("Expecting value: line 1 column 1 (char 0) internal")
+
+    res = _agent_post(agent)
+
+    assert res.status_code == 502
+    assert res.json()["detail"] == "에이전트 실행 실패"
+    assert "internal" not in res.text
 
 
 def test_agent_web_source_serializes_all_source_keys():

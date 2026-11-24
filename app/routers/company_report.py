@@ -57,13 +57,13 @@ def index(
 def chat(request: ChatRequest, container: Container = Depends(get_container)) -> ChatResponse:
     top_k = 4 if request.topK <= 0 else min(max(request.topK, 1), 20)
     if request.agent:
+        if not request.corpCode or not request.corpCode.strip():
+            raise HTTPException(status_code=400, detail="corpCode는 필수입니다")
         try:
             return container.agent_service.chat(
                 request.question, request.corpCode, request.history, request.provider
             )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-        except Exception as e:
+        except Exception as e:  # ValueError(JSON/검증 오류 포함)도 내부 문구를 노출하지 않고 502로 보낸다
             logger.exception("에이전트 실행 실패")
             raise HTTPException(status_code=502, detail="에이전트 실행 실패") from e
     try:
