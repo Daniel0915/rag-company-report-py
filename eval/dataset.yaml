@@ -467,3 +467,367 @@
     section_order: 8
     section_title: (1) 소유지분현황[ESG]
   pblntf_ty: J
+- id: q0025
+  corp_code: 00164779
+  question: 2025년 상반기 연결 기준으로 리스부채가 기초 대비 기말에 얼마나 줄었는지, 기초와 기말 장부금액이 각각 얼마인지 알려주세요.
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 상반기(당반기) 연결 기준 리스부채의 기초장부금액은 2,768,376백만원이고 기말장부금액은 2,528,133백만원으로,
+    기초 대비 240,243백만원 감소했습니다.
+  must_include:
+  - 2,768,376백만원
+  - 2,528,133백만원
+  - 240,243백만원
+  expected_sections:
+  - rcept_no: '20250814003049'
+    source_file: 20250814003049.xml
+    section_order: 30
+    section_title: 12. 리스 (연결)
+  pblntf_ty: A
+- id: q0026
+  corp_code: 00164779
+  question: 2024년 12월 31일 기준으로 재고자산 전체의 평가손실충당금을 차감하기 전 취득원가와 차감 후 장부금액은 각각 얼마였나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2024년 12월 말 기준 재고자산 합계의 취득원가는 10,186,383백만원이고, 평가손실충당금 866,466백만원을
+    차감한 장부금액은 9,319,917백만원입니다.
+  must_include:
+  - 10,186,383백만원
+  - 866,466백만원
+  - 9,319,917백만원
+  expected_sections:
+  - rcept_no: '20250319000665'
+    source_file: 20250319000665.xml
+    section_order: 65
+    section_title: 8. 재고자산
+  pblntf_ty: A
+- id: q0027
+  corp_code: 00164779
+  question: SK하이닉스가 2025년 3분기 분기보고서(제78기)를 금융위원회와 한국거래소에 제출한 날짜는 언제이고, 이 보고서가 다루는
+    사업연도 기간은 어떻게 돼?
+  answerable: true
+  origin: generated
+  expected_answer: SK하이닉스(에스케이하이닉스 주식회사)의 제78기 분기보고서는 2025년 11월 14일에 금융위원회와 한국거래소에
+    제출되었으며, 해당 사업연도 기간은 2025년 01월 01일부터 2025년 09월 30일까지이다.
+  must_include:
+  - 2025년 11월 14일
+  - 2025년 01월 01일
+  - 2025년 09월 30일
+  - 제 78 기
+  expected_sections:
+  - rcept_no: '20251114001805'
+    source_file: 20251114001805.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: A
+- id: q0028
+  corp_code: 00164779
+  question: SK hynix NAND Product Solutions Corp.가 2026년 1월 28일 이사회에서 결정한 영업양도에서 양수
+    대상 법인은 어디이고, 양도예정일은 언제로 잡혀 있나요?
+  answerable: true
+  origin: generated
+  expected_answer: 양수법인은 계열회사인 Solidigm Inc.이며, 양도예정일자는 2026-02-28입니다. 이 영업양도는 에스케이하이닉스㈜의
+    종속회사인 SK hynix NAND Product Solutions Corp.가 사업구조 재편을 위해 신설법인으로 영업을 넘기는 건이고, 이사회결의일은
+    2026-01-28입니다.
+  must_include:
+  - Solidigm Inc.
+  - '2026-02-28'
+  - '2026-01-28'
+  expected_sections:
+  - rcept_no: '20260213800004'
+    source_file: 20260213800004.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0029
+  corp_code: 00164779
+  question: 2026년 1월 29일에 자사주상여금으로 주식을 받은 곽노정 임원은 변동 후 보통주를 몇 주 보유하게 됐고, 그때 몇 주가 늘었나요?
+  answerable: true
+  origin: generated
+  expected_answer: 곽노정 임원은 2026년 1월 29일 자사주상여금(+)으로 보통주 335주를 추가로 받아, 변경 전 5,770주에서
+    변경 후 6,105주를 보유하게 되었습니다.
+  must_include:
+  - '2026-01-29'
+  - 자사주상여금(+)
+  - 5,770
+  - '335'
+  - 6,105
+  expected_sections:
+  - rcept_no: '20260129800916'
+    source_file: 20260129800916.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0030
+  corp_code: '00164742'
+  question: 2025년 한 해 동안 별도재무제표 기준 영업이익이 2024년에 비해 얼마나 줄었고, 2025년 영업이익은 얼마였나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년(제58기) 영업이익은 3,515,052백만원으로, 2024년(제57기) 6,599,372백만원에서 3,084,320백만원
+    감소했습니다.
+  must_include:
+  - 3,515,052백만원
+  - 6,599,372백만원
+  - 3,084,320백만원
+  expected_sections:
+  - rcept_no: '20260318001394'
+    source_file: 20260318001394.xml
+    section_order: 66
+    section_title: 4-2. 손익계산서
+  pblntf_ty: A
+- id: q0031
+  corp_code: '00164742'
+  question: 2025년 1분기(2025.03 분기말 기준) 연결 기준으로 지역별 순매출액을 합산하면 얼마였고, 그중 북미 지역 매출은 얼마였나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 1분기 연결 기준 지역 합계 순매출액은 44,407,761백만원이며, 이 중 북미 지역 순매출액은 19,901,581백만원이다.
+  must_include:
+  - 44,407,761백만원
+  - 19,901,581백만원
+  expected_sections:
+  - rcept_no: '20250515001159'
+    source_file: 20250515001159.xml
+    section_order: 62
+    section_title: 37. 부문정보 (연결)
+  pblntf_ty: A
+- id: q0032
+  corp_code: '00164742'
+  question: 2026년 3월 분기보고서 기준으로, 케이티 주식을 12,011,143주 들고 있는 이유가 뭐고 마음대로 팔 수는 있는 건가요?
+  answerable: true
+  origin: generated
+  expected_answer: (주)케이티와의 사업 제휴 강화 목적으로 자기주식을 상호교환하여 보유 중입니다. 보유 중인 (주)케이티 주식 12,011,143주는
+    일정 기한 동안 처분이 제한되어 있어 자유롭게 팔 수 없습니다.
+  must_include:
+  - (주)케이티
+  - 사업 제휴 강화
+  - 자기주식을 상호교환
+  - 12,011,143주
+  - 처분이 제한
+  expected_sections:
+  - rcept_no: '20260515002418'
+    source_file: 20260515002418.xml
+    section_order: 74
+    section_title: 5. 기타금융자산
+  pblntf_ty: A
+- id: q0033
+  corp_code: '00164742'
+  question: 2026년 3월 25일 종가 기준으로 임원 성과보상용 자기주식을 처분한다고 했던 공시에서, 처분 대상 주식 가격은 얼마로 잡았나요?
+  answerable: true
+  origin: generated
+  expected_answer: 처분 대상 주식 가격은 이사회 결의일 전일인 2026년 3월 25일 종가 501,000원을 기준으로 했다. 처분예정금액도
+    처분예정주식수에 이 종가를 곱해 산정하며, 주가 변동에 따라 달라질 수 있다.
+  must_include:
+  - 501,000원
+  - 2026년 3월 25일
+  - 이사회 결의일 전일 종가
+  expected_sections:
+  - rcept_no: '20260326001343'
+    source_file: 20260326001343.xml
+    section_order: 2
+    section_title: 자기주식 처분 결정
+  pblntf_ty: B
+- id: q0034
+  corp_code: '00164742'
+  question: 2026년 1월 29일에 이사회에서 결정한 자기주식 취득에서, 2026년 1월 30일부터 4월 27일까지 장내매수로 사들이려는
+    보통주 수량과 취득예정금액은 얼마였고, 증권사는 어디로 정했나요?
+  answerable: true
+  origin: generated
+  expected_answer: 보통주식 744,870주를 총 366,848,475,000원 규모로 취득할 예정이며, 위탁투자중개업자는 현대차증권이다.
+    취득방법은 장내매수이다.
+  must_include:
+  - 744,870
+  - 366,848,475,000원
+  - 현대차증권
+  expected_sections:
+  - rcept_no: '20260129000336'
+    source_file: 20260129000336.xml
+    section_order: 2
+    section_title: 자기주식 취득 결정
+  pblntf_ty: B
+- id: q0035
+  corp_code: '00164742'
+  question: 현대자동차가 2026년 5월 27일에 여의도에서 투자자 상대로 IR 행사를 한다던데, 몇 시에 시작하고 후원은 어느 증권사가
+    맡았나요?
+  answerable: true
+  origin: generated
+  expected_answer: 현대자동차의 IR 행사는 2026년 5월 27일 14시 20분에 여의도 금융투자교육원에서 열리며, 후원기관은 한국투자증권입니다.
+  must_include:
+  - '2026-05-27'
+  - '14:20'
+  - 여의도 금융투자교육원
+  - 한국투자증권
+  expected_sections:
+  - rcept_no: '20260520800521'
+    source_file: 20260520800521.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0036
+  corp_code: 00688996
+  question: KB금융 자회사 푸르덴셜생명과 KB생명 합병에서, KB생명 보통주 1주를 가진 주주는 푸르덴셜생명 주식을 몇 주 받게 되나요?
+  answerable: true
+  origin: generated
+  expected_answer: KB생명 액면금 5,000원인 기명식 보통주식 1주당 푸르덴셜생명 액면금 10,000원인 기명식 보통주식 0.013174547주를
+    배정받습니다. 소수점 이하 아홉째 자리까지만 표시한 합병비율입니다.
+  must_include:
+  - '0.013174547'
+  - KB생명 액면금 5,000원
+  - 푸르덴셜생명 액면금 10,000원
+  - 1주당
+  expected_sections:
+  - rcept_no: '20260324000822'
+    source_file: 20260324000822.xml
+    section_order: 28
+    section_title: 8. 기타 재무에 관한 사항
+  pblntf_ty: A
+- id: q0037
+  corp_code: 00266961
+  question: 2025년 1분기 말(2025.03.31) 연결 기준으로 복구충당부채는 분기 중 얼마나 설정됐고, 분기말 잔액은 얼마였나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 1분기 연결 기준 복구충당부채는 당분기 중 585,522천원이 설정되었고, 분기말 잔액은 20,878,963천원입니다.
+    (기초금액 20,633,623천원, 사용액 202,965천원, 미사용금액 환입 148,458천원, 기타 증가 11,241천원 반영)
+  must_include:
+  - 585,522천원
+  - 20,878,963천원
+  expected_sections:
+  - rcept_no: '20250515001302'
+    source_file: 20250515001302.xml
+    section_order: 31
+    section_title: 13. 충당부채 (연결)
+  pblntf_ty: A
+- id: q0038
+  corp_code: 00266961
+  question: 네이버가 2026년 2월 5일 이사회에서 결산배당 관련해서 결정한 배당기준일이 언제야? 주주명부 폐쇄도 하는 건지도 알려줘.
+  answerable: true
+  origin: generated
+  expected_answer: 네이버는 2026년 2월 5일 이사회 결의를 통해 결산배당 기준일을 2026-02-27로 정했습니다. 주주명부 폐쇄
+    없이 기준일만으로 권리주주를 확정하며, 폐쇄 시작일과 종료일은 별도로 없습니다(-).
+  must_include:
+  - '2026-02-27'
+  - 결산
+  - 주주명부폐쇄 없이 기준일만으로 권리주주를 확정
+  - '2026-02-05'
+  expected_sections:
+  - rcept_no: '20260206800005'
+    source_file: 20260206800005.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0039
+  corp_code: 00266961
+  question: 2026년 2월 2일을 신주배정기준일로 하는 NW HOLDINGS INTERMEDIA 주주배정 유상증자에서 보통주 신주는 몇
+    주이고 1주당 발행가액은 얼마로 정해졌나요?
+  answerable: true
+  origin: generated
+  expected_answer: 신주의 종류와 수는 보통주식 563,546,415주이며, 1주당 확정발행가는 1,729원입니다. 발행가 산정방법은
+    액면가액 기준입니다.
+  must_include:
+  - 563,546,415
+  - 1,729원
+  - NW HOLDINGS INTERMEDIA, SOCIEDAD LIMITADA
+  - '2026-02-02'
+  expected_sections:
+  - rcept_no: '20260202801571'
+    source_file: 20260202801571.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0040
+  corp_code: 00688996
+  question: 2026년 1월 9일 공시서류작성기준일 기준으로 자기주식 신탁계약 해지 결정 공시에서 보통주 자기주식 보유 총수량은 얼마이고,
+    그중 수탁자 보유물량과 현물보유물량은 각각 얼마였나요?
+  answerable: true
+  origin: generated
+  expected_answer: 2026년 1월 9일 공시서류작성기준일 기준 보통주 자기주식 총 보유수량(기말수량)은 22,874,381주입니다.
+    이 중 수탁자 보유물량은 5,564,253주, 현물보유물량은 14,262,733주이며, 장내 직접 취득분은 3,047,395주입니다. 2026년
+    1월 1일 기초수량과 동일하게 취득·처분·소각에 따른 변동은 없었습니다.
+  must_include:
+  - 22,874,381
+  - 5,564,253
+  - 14,262,733
+  - 3,047,395
+  expected_sections:
+  - rcept_no: '20260109000437'
+    source_file: 20260109000437.xml
+    section_order: 2
+    section_title: 자기주식취득 신탁계약 해지 결정
+  pblntf_ty: B
+- id: q0041
+  corp_code: 00688996
+  question: 삼성증권과 맺은 4,000억 원 규모 자기주식취득 신탁계약이 2025년 3월 4일에 해지된다고 하던데, 이 계약으로 취득한 주식은
+    몇 주이고 해지 후에는 언제까지 보유할 예정인가요?
+  answerable: true
+  origin: generated
+  expected_answer: 2025년 3월 4일 해지되는 계약으로 취득한 보통주식은 4,575,874주이며, 해지 후 2025년 3월 4일부터
+    2025년 5월 15일까지 법인계좌에 입고해 보유할 예정입니다. 5월 15일은 주식 소각 예정일이며 관계기관과의 협의에 따라 변동될 수 있습니다.
+  must_include:
+  - 4,575,874주
+  - 2025년 3월 4일 ~ 2025년 5월 15일
+  - 삼성증권
+  - 400,000,000,000원
+  expected_sections:
+  - rcept_no: '20250304000411'
+    source_file: 20250304000411.xml
+    section_order: 2
+    section_title: 자기주식취득 신탁계약 해지 결정
+  pblntf_ty: B
+- id: q0042
+  corp_code: 00688996
+  question: KB금융지주에서 2024년 1월 1일자로 임원에 선임된 차대현 전무는 등기임원인가요, 비등기임원인가요? 그리고 이 보고서의 보고구분은
+    무엇인가요?
+  answerable: true
+  origin: generated
+  expected_answer: 차대현 전무는 2024.01.01에 선임된 비등기임원이며, 이 보고서의 보고구분은 신규입니다.
+  must_include:
+  - 차대현
+  - 비등기임원
+  - 전무
+  - 2024.01.01
+  - 신규
+  expected_sections:
+  - rcept_no: '20241217000260'
+    source_file: 20241217000260.xml
+    section_order: 2
+    section_title: 2. 보고자에 관한 사항
+  pblntf_ty: D
+- id: q0043
+  corp_code: 00688996
+  question: KB금융 자회사 국민은행이 2025년 결산배당으로 보통주 1주당 얼마를 현금배당하기로 2026년 2월 4일 이사회에서 결정했고,
+    배당금 총액은 얼마인가요?
+  answerable: true
+  origin: generated
+  expected_answer: 국민은행은 2026년 2월 4일 이사회에서 2025년 결산배당으로 보통주 1주당 2,310원의 현금배당을 결정했으며,
+    배당금 총액은 934,115,757,960원입니다. 배당기준일은 2025-12-31이고, 주주총회 승인 과정에서 변경될 수 있습니다.
+  must_include:
+  - 2,310
+  - 934,115,757,960원
+  - 국민은행
+  - '2026-02-04'
+  expected_sections:
+  - rcept_no: '20260205800620'
+    source_file: 20260205800620.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
+- id: q0044
+  corp_code: 00688996
+  question: 국민연금공단이 2026년 8월 7일 기준 주주명부 확인 결과 보통주를 얼마나 줄였고, 그 결과 8월 21일 보고서 기준 보유
+    주식수와 지분율은 어떻게 돼?
+  answerable: true
+  origin: generated
+  expected_answer: 국민연금공단의 보통주는 2026년 8월 7일 기준으로 변경 전 32,734,500주에서 112,224주 감소해 변경
+    후 32,622,276주가 되었다. 지분율은 9.23%에서 9.20%로 0.03%p 낮아졌다.
+  must_include:
+  - 국민연금공단
+  - '2026-08-07'
+  - -112,224
+  - 32,734,500
+  - 32,622,276
+  - '9.20'
+  expected_sections:
+  - rcept_no: '20260821800672'
+    source_file: 20260821800672.xml
+    section_order: 0
+    section_title: 표지
+  pblntf_ty: I
