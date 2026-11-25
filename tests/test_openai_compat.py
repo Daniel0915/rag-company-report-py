@@ -54,6 +54,7 @@ def test_generate_returns_text_and_records_usage():
     with metered() as calls:
         assert _client(fake).generate("시스템", "질문") == "답"
     assert fake.requests[0]["model"] == "deepseek/deepseek-v4.1-flash"
+    assert fake.requests[0]["max_tokens"] == 8192
     assert fake.requests[0]["messages"][0] == {"role": "system", "content": "시스템"}
     [call] = calls
     assert (call.input_tokens, call.output_tokens, call.cost_usd) == (300, 40, 0.0001)

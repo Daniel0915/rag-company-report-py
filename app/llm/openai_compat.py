@@ -11,6 +11,7 @@ from app.llm.usage import LlmCall, record
 class OpenAICompatClient:
     def __init__(self, settings: Settings, client: OpenAI | None = None) -> None:
         self._model = settings.deepseek_model
+        self._max_tokens = settings.deepseek_max_tokens
         self._has_key = bool(settings.openrouter_api_key) or client is not None
         self._client = client or OpenAI(
             # 키가 없을 때도 앱이 뜨도록 자리값을 넣고, 실제 호출에서 막는다
@@ -28,7 +29,7 @@ class OpenAICompatClient:
         """chat.completions 한 번. 사용량을 기록한다."""
         if not self._has_key:
             raise RuntimeError("OPENROUTER_API_KEY가 설정되지 않았습니다")
-        kwargs: dict = {"model": self._model, "messages": messages}
+        kwargs: dict = {"model": self._model, "messages": messages, "max_tokens": self._max_tokens}
         if tools:
             kwargs["tools"] = tools
             if tool_choice:
