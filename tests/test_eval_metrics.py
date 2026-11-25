@@ -60,6 +60,15 @@ def test_refusal_detection_covers_baseline_misses():
 def test_refusal_detection_covers_claude_phrasing():
     # Claude Haiku 시험 실행(2026-11-25)에서 거절인데 못 잡은 답변
     assert is_refusal("제공된 자료에는 2030년 주당 배당금 계획이 없어서 답변드릴 수 없습니다.")
+    # Claude Sonnet 에이전트 평가(2026-11-25)의 실제 거절
+    assert is_refusal("삼성전자의 2028년 설비투자(CAPEX) 계획 금액은 공시에서 찾지 못했습니다.")
+    assert is_refusal("서초사옥에 엘리베이터가 모두 몇 대 있는지는 확인하지 못했습니다.")
+
+
+def test_caveat_after_a_full_answer_is_not_refusal():
+    # Claude Sonnet 기존 경로(2026-11-25): 답을 다 한 뒤 끝에 단서를 붙인 경우
+    answer = "유형자산처분이익은 비교 기간보다 11,312백만원 늘었습니다. " + "근거 설명 " * 40 + "다만 처분 사유는 명시되어 있지 않습니다."
+    assert not is_refusal(answer)
 
 
 def test_extract_numbers_drops_single_digits():

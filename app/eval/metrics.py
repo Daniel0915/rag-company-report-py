@@ -25,6 +25,10 @@ REFUSAL_PHRASES: tuple[str, ...] = (
     "답변드릴 수 없",
     "답변할 수 없",
     "답할 수 없",
+    "찾지 못했",
+    "확인하지 못했",
+    "나오지 않았",
+    "존재하지 않",
     # 로컬 모델이 영어로 거절하는 경우
     "not provided",
     "does not contain",
@@ -87,8 +91,14 @@ def fact_recall(answer: str, must_include: list[str]) -> float:
     return sum(_squash(f) in squashed for f in must_include) / len(must_include)
 
 
+# 거절은 답의 첫머리에서 한다. 끝에 붙은 단서("…는 명시되어 있지 않습니다")까지 보면
+# 답을 다 한 경우도 거절로 센다(Claude 기존 경로에서 24문항 중 17개가 그렇게 잡혔다).
+REFUSAL_HEAD_CHARS = 200
+
+
 def is_refusal(answer: str) -> bool:
-    return any(p in answer for p in REFUSAL_PHRASES)
+    head = answer[:REFUSAL_HEAD_CHARS]
+    return any(p in head for p in REFUSAL_PHRASES)
 
 
 def extract_numbers(text: str) -> set[str]:
