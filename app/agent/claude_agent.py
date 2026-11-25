@@ -16,7 +16,7 @@ from app.agent.context import REPO_ROOT
 from app.agent.tools import TOOL_NAMES
 from app.agent.trace import ToolCallRecord, read_records
 from app.config import Settings
-from app.llm.claude_cli import subscription_env
+from app.llm.claude_cli import parse_cli_json, subscription_env
 
 MCP_SERVER_NAME = "company"
 
@@ -63,18 +63,6 @@ def build_claude_command(
     ]
 
 
-def parse_cli_result(stdout: str) -> str:
-    try:
-        payload = json.loads(stdout)
-        answer = payload["result"]
-        failed = bool(payload.get("is_error"))
-    except (ValueError, KeyError, TypeError) as e:
-        raise RuntimeError("claude CLI 출력을 해석하지 못했습니다") from e
-    if failed:
-        raise RuntimeError(f"claude CLI 오류: {answer}")
-    return str(answer).strip()
-
-
 def run_claude_agent(
     question: str,
     system_prompt: str,
@@ -112,6 +100,6 @@ def run_claude_agent(
             raise RuntimeError(
                 f"claude CLI 오류 (exit {completed.returncode}): {completed.stderr.strip()}"
             )
-        return ClaudeAgentResult(parse_cli_result(completed.stdout), read_records(trace_path))
+        return ClaudeAgentResult(parse_cli_json(completed.stdout).text, read_records(trace_path))
     finally:
         shutil.rmtree(workdir, ignore_errors=True)

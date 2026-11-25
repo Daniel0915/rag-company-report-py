@@ -10,6 +10,7 @@ from datetime import datetime
 from neo4j import Driver
 
 from app.eval.dataset import Item
+from app.llm.claude_cli import CliCall, metered
 from app.agent.service import AgentService
 from app.eval.metrics import (
     Retrieved,
@@ -71,6 +72,19 @@ def _empty_row(item: Item) -> dict:
         "judge": None,
         "error": None,
         "error_stage": None,
+        "usage": None,
+    }
+
+
+def usage_row(calls: list[CliCall]) -> dict | None:
+    """답을 만드는 동안 일어난 claude 호출의 토큰과 비용 합계. 채점 호출은 넣지 않는다. claude를 안 썼으면 None."""
+    if not calls:
+        return None
+    return {
+        "calls": len(calls),
+        "input_tokens": sum(c.input_tokens for c in calls),
+        "output_tokens": sum(c.output_tokens for c in calls),
+        "cost_usd": sum(c.cost_usd for c in calls),
     }
 
 
@@ -81,11 +95,13 @@ def run_item(
     row = _empty_row(item)
     stage = "retrieve"
     try:
-        docs = chat.retrieve(item.question, item.corp_code, top_k)
-        retrieved = [to_retrieved(d) for d in docs]
-        row["retrieved"] = _retrieved_rows(retrieved)
-        stage = "answer"
-        answer = chat.answer(item.question, item.corp_code, docs, provider)
+        with metered() as calls:
+            docs = chat.retrieve(item.question, item.corp_code, top_k)
+            retrieved = [to_retrieved(d) for d in docs]
+            row["retrieved"] = _retrieved_rows(retrieved)
+            stage = "answer"
+            answer = chat.answer(item.question, item.corp_code, docs, provider)
+        row["usage"] = usage_row(calls)
         row["answer"] = answer.text
         row["prompt_tokens"] = answer.prompt_tokens
         stage = "score"
@@ -104,7 +120,9 @@ def run_agent_item(agent: AgentService, item: Item, provider: str, judge_fn: Cal
     row = _empty_row(item) | {"tool_calls": []}
     stage = "agent"
     try:
-        result = agent.run(item.question, item.corp_code, provider)
+        with metered() as calls:
+            result = agent.run(item.question, item.corp_code, provider)
+        row["usage"] = usage_row(calls)
         retrieved = retrieved_from_records(result.records)
         row["retrieved"] = _retrieved_rows(retrieved)
         row["tool_calls"] = [

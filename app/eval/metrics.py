@@ -22,6 +22,9 @@ REFUSAL_PHRASES: tuple[str, ...] = (
     "나와 있지 않",
     "명시되어 있지 않",
     "제공되지 않",
+    "답변드릴 수 없",
+    "답변할 수 없",
+    "답할 수 없",
     # 로컬 모델이 영어로 거절하는 경우
     "not provided",
     "does not contain",

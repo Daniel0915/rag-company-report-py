@@ -57,6 +57,11 @@ def test_refusal_detection_covers_baseline_misses():
     assert is_refusal("The provided data does not contain specific information about daily diners.")
 
 
+def test_refusal_detection_covers_claude_phrasing():
+    # Claude Haiku 시험 실행(2026-11-25)에서 거절인데 못 잡은 답변
+    assert is_refusal("제공된 자료에는 2030년 주당 배당금 계획이 없어서 답변드릴 수 없습니다.")
+
+
 def test_extract_numbers_drops_single_digits():
     assert extract_numbers("[1] 8,709억 12.5% 5") == {"8709", "12.5"}
 

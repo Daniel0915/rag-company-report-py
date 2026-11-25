@@ -229,3 +229,31 @@ def test_run_file_name_agent_marker():
     started = datetime(2026, 11, 24, 15, 30, 0)
     assert run_file_name(started, "local", 6) == "20261124-153000_local_k6.json"
     assert run_file_name(started, "local", 6, agent=True) == "20261124-153000_local_k6_agent.json"
+
+
+def _cli_json(output_tokens: int) -> str:
+    import json
+
+    return json.dumps(
+        {"result": "답", "is_error": False, "usage": {"input_tokens": 10, "output_tokens": output_tokens}, "total_cost_usd": 0.5}
+    )
+
+
+def test_run_item_records_answer_usage_but_not_judge_usage():
+    from app.llm.claude_cli import parse_cli_json
+
+    class ClaudeChat(FakeChat):
+        def answer(self, *a, **k):
+            parse_cli_json(_cli_json(5))
+            return super().answer(*a, **k)
+
+    def judge_fn(item, retrieved, answer):
+        parse_cli_json(_cli_json(999))
+        return JudgeResult(faithfulness=1.0, correct=True, reason="ok")
+
+    row = run_item(ClaudeChat(), _item(), 6, "claude", judge_fn)
+    assert row["usage"] == {"calls": 1, "input_tokens": 10, "output_tokens": 5, "cost_usd": 0.5}
+
+
+def test_local_run_item_has_no_usage():
+    assert run_item(FakeChat(), _item(), 6, "local", None)["usage"] is None

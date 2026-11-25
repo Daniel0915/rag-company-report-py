@@ -7,7 +7,6 @@ import pytest
 from app.agent.claude_agent import (
     build_claude_command,
     build_mcp_config,
-    parse_cli_result,
     run_claude_agent,
 )
 from app.agent.tools import TOOL_NAMES
@@ -41,14 +40,6 @@ def test_claude_command_allows_only_our_tools():
     assert cmd[cmd.index("--setting-sources") + 1] == ""
     allowed = cmd[cmd.index("--allowedTools") + 1 :]
     assert allowed[: len(TOOL_NAMES)] == [f"mcp__company__{n}" for n in TOOL_NAMES]
-
-
-def test_parse_cli_result():
-    assert parse_cli_result('{"result": "답", "is_error": false}') == "답"
-    with pytest.raises(RuntimeError):
-        parse_cli_result("not json")
-    with pytest.raises(RuntimeError):
-        parse_cli_result('{"result": "boom", "is_error": true}')
 
 
 def test_run_claude_agent_reads_trace():
@@ -135,7 +126,7 @@ def test_claude_cli_client_strips_api_credentials(monkeypatch):
 
     def fake_run(command, **kwargs):
         seen["env"] = kwargs["env"]
-        return subprocess.CompletedProcess(command, 0, "답\n", "")
+        return subprocess.CompletedProcess(command, 0, json.dumps({"result": "답", "is_error": False}), "")
 
     monkeypatch.setattr(claude_cli.subprocess, "run", fake_run)
     assert claude_cli.ClaudeCliClient(_settings()).generate("s", "u") == "답"

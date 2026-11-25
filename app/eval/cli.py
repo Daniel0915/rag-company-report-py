@@ -48,6 +48,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--provider", choices=["local", "claude"], default="local")
     p_run.add_argument("--top-k", type=int, default=6)
     p_run.add_argument("--judge", choices=["none", "claude"], default="none")
+    p_run.add_argument("--claude-model", help="답변에 쓸 claude 모델 (기본값: 설정의 CLAUDE_MODEL)")
+    p_run.add_argument("--judge-model", default="opus", help="채점에 쓸 claude 모델")
     p_run.add_argument("--temperature", type=float, default=0)
     p_run.add_argument("--seed", type=int, default=42)
     p_run.add_argument("--dataset", default=DEFAULT_DATASET)
@@ -117,10 +119,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if not items:
         print("정답셋이 비어 있습니다")
         return 1
-    if args.provider == "claude" and args.judge == "claude":
-        print("경고: 답변과 채점 모두 claude라 자기 답을 자기가 채점합니다")
-
     settings = get_settings()
+    if args.claude_model:
+        settings = settings.model_copy(update={"claude_model": args.claude_model})
+    if args.provider == "claude" and args.judge == "claude" and settings.claude_model == args.judge_model:
+        print("경고: 답변과 채점이 같은 claude 모델이라 자기 답을 자기가 채점합니다")
+
     started = datetime.now()
     ollama = OllamaClient(settings, options={"temperature": args.temperature, "seed": args.seed})
     ollama_agent = (
@@ -142,7 +146,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
         judge_fn = None
         judge_errors: list[str] = []
         if args.judge == "claude":
-            judge_claude = ClaudeCliClient(settings.model_copy(update={"claude_timeout_seconds": EVAL_CLAUDE_TIMEOUT_SECONDS}))
+            judge_claude = ClaudeCliClient(
+                settings.model_copy(
+                    update={"claude_timeout_seconds": EVAL_CLAUDE_TIMEOUT_SECONDS, "claude_model": args.judge_model}
+                )
+            )
             judge_fn = functools.partial(judge, judge_claude, on_error=judge_errors.append)
         index = index_snapshot(driver, {item.corp_code for item in items})
         def on_progress(n: int, total: int, item_id: str) -> None:
@@ -164,6 +172,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         "chat_model": _chat_model(settings, args.provider),
         "embedding_model": settings.ollama_embedding_model,
         "judge": args.judge,
+        "judge_model": args.judge_model if args.judge == "claude" else None,
         "agent": args.agent,
         "temperature": args.temperature,
         "seed": args.seed,
