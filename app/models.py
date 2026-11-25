@@ -16,7 +16,7 @@ class ChatTurnDto(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """topK는 근거로 쓸 청크 수(기본 4). provider는 local(Ollama)/claude."""
+    """topK는 근거로 쓸 청크 수(기본 4). provider는 local(Ollama)/claude(CLI)/deepseek(OpenRouter API)."""
 
     question: str
     corpCode: str

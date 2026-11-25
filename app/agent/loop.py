@@ -1,4 +1,4 @@
-"""모델과 무관한 도구 호출 루프. 모델은 StepModel만 구현하면 된다(Ollama 어댑터, 이후 Claude API)."""
+"""모델과 무관한 도구 호출 루프. 모델은 StepModel만 구현하면 된다(Ollama, OpenAI 호환 API 어댑터)."""
 from __future__ import annotations
 
 import json
@@ -8,6 +8,7 @@ from typing import Any, Protocol
 from app.agent.executor import RAW_ARGUMENTS_KEY, ToolExecutor
 from app.agent.tools import ToolSpec
 from app.llm.ollama import OllamaClient
+from app.llm.openai_compat import OpenAICompatClient
 
 FINAL_ANSWER_PROMPT = "도구는 더 쓸 수 없습니다. 지금까지의 근거로 최종 답변을 하세요."
 
@@ -118,17 +119,8 @@ class OllamaStepModel:
     def step(
         self, messages: list[dict], tools: list[ToolSpec], allow_tools: bool = True
     ) -> ModelStep:
-        payload = [
-            {
-                "type": "function",
-                "function": {
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": t.input_schema,
-                },
-            }
-            for t in tools
-        ] if allow_tools else []  # Ollama에는 tool_choice가 없어 도구 금지는 tools를 빼서 표현한다
+        # Ollama에는 tool_choice가 없어 도구 금지는 tools를 빼서 표현한다
+        payload = _function_tools(tools) if allow_tools else []
         data = self._client.chat_messages(messages, payload)
         message = data.get("message") or {}
         calls = [
@@ -136,3 +128,48 @@ class OllamaStepModel:
             for c in message.get("tool_calls") or []
         ]
         return ModelStep(message.get("content", ""), calls, data.get("prompt_eval_count"))
+
+
+class OpenAIStepModel:
+    """OpenAI 호환 chat.completions(지금은 OpenRouter의 DeepSeek) 응답을 ModelStep으로 바꾸는 어댑터."""
+
+    def __init__(self, client: OpenAICompatClient) -> None:
+        self._client = client
+
+    def step(
+        self, messages: list[dict], tools: list[ToolSpec], allow_tools: bool = True
+    ) -> ModelStep:
+        response = self._client.complete(
+            [_openai_message(m) for m in messages],
+            _function_tools(tools),
+            tool_choice=None if allow_tools else "none",
+        )
+        message = response.choices[0].message
+        calls = [
+            ToolCall(c.function.name, _parse_arguments(c.function.arguments), id=c.id)
+            for c in message.tool_calls or []
+        ]
+        return ModelStep(
+            message.content or "",
+            calls,
+            response.usage.prompt_tokens if response.usage else None,
+            # 추론 필드(reasoning 등)까지 그대로 돌려보내야 이어지는 턴에서 맥락이 끊기지 않는다
+            raw_assistant=message.model_dump(exclude_none=True),
+        )
+
+
+def _function_tools(tools: list[ToolSpec]) -> list[dict]:
+    return [
+        {
+            "type": "function",
+            "function": {"name": t.name, "description": t.description, "parameters": t.input_schema},
+        }
+        for t in tools
+    ]
+
+
+def _openai_message(message: dict) -> dict:
+    """루프의 도구 결과 메시지에서 OpenAI 규격에 없는 tool_name을 뺀다."""
+    if message.get("role") == "tool":
+        return {k: v for k, v in message.items() if k != "tool_name"}
+    return message

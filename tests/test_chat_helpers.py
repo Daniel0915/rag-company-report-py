@@ -13,6 +13,7 @@ from app.vector.document import Document
 def test_normalize_provider():
     assert _normalize_provider("gemini") == "local"
     assert _normalize_provider("claude") == "claude"
+    assert _normalize_provider("deepseek") == "deepseek"
     assert _normalize_provider(None) == "local"
     assert _normalize_provider("무언가") == "local"
 

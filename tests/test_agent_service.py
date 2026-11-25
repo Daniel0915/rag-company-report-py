@@ -139,3 +139,23 @@ def test_agent_run_claude_uses_cli_agent(monkeypatch):
     assert result == AgentResult("클로드답", [rec], None)
     assert claude.call_args.args[0] == "q" and claude.call_args.args[2] == CORP
     opened.assert_not_called()
+
+
+def test_agent_run_deepseek_uses_openai_step_model(monkeypatch):
+    seen = {}
+
+    def fake_loop(model, executor, system_prompt, question):
+        seen["model"] = model
+        return LoopResult("딥시크답", 321)
+
+    monkeypatch.setattr(service_module, "run_tool_loop", fake_loop)
+    monkeypatch.setattr(service_module, "open_tool_context", lambda s, c: (MagicMock(), lambda: None))
+    monkeypatch.setattr(service_module, "build_tools", lambda ctx: [])
+    chat = MagicMock()
+    svc = AgentService(SimpleNamespace(agent_max_tool_calls=6), chat, MagicMock())
+
+    result = svc.run("q", CORP, "deepseek")
+
+    assert result.answer == "딥시크답" and result.prompt_tokens == 321
+    assert type(seen["model"]).__name__ == "OpenAIStepModel"
+    chat.deepseek_client.assert_called_once()

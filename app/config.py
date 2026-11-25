@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     claude_model: str = "sonnet"
     claude_timeout_seconds: int = 60
 
+    # DeepSeek (OpenRouter의 OpenAI 호환 API, 선불 크레딧)
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    deepseek_model: str = "deepseek/deepseek-v4.1-flash"
+    deepseek_timeout_seconds: int = 120
+
     # 에이전트(도구 호출)
     tavily_api_key: str = ""
     tavily_base_url: str = "https://api.tavily.com"

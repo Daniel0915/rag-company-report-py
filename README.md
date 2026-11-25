@@ -329,8 +329,10 @@ python -m app.eval generate --corp 00126380
 # 3. 검수한 문항을 정답셋(eval/dataset.yaml)으로 옮깁니다. drop은 버립니다.
 python -m app.eval accept
 
-# 4. 평가 실행
+# 4. 평가 실행 (provider: local | deepseek | claude)
 python -m app.eval run --provider local --top-k 6
+python -m app.eval run --provider deepseek --judge claude   # 채점은 claude CLI(기본 opus)
+python -m app.eval run --provider claude --claude-model haiku --judge claude
 
 # 5. 두 실행 비교
 python -m app.eval compare eval/runs/A.json eval/runs/B.json
@@ -396,6 +398,7 @@ YAML 주석은 보존되지 않습니다.
 | `correct_refusal` | 답이 없는 질문에 "모른다"고 한 비율. 높을수록 좋음 |
 | `unsupported_numbers` | 문항당 평균. 답변 속 숫자 중 모델이 본 근거(본문과 출처 머리말)와 질문에 없는 숫자의 수(지어낸 숫자 신호). 낮을수록 좋음 |
 | `prompt_tokens` | 문항당 평균. Ollama가 실제로 읽은 입력 토큰 수(local만) |
+| `usage`(문항별) | 답을 만드는 동안 쓴 외부 LLM(claude, deepseek)의 호출 수, 입력/출력 토큰, 비용(USD). 채점 호출은 뺀다. claude CLI 비용은 API 단가로 계산한 참고값이다 |
 | `faithfulness` | `--judge claude`일 때. 답변의 사실 주장 중 근거로 뒷받침되는 비율(0~1) |
 | `judge_correct` | `--judge claude`일 때. 답변이 기대 답과 일치하는(답 없는 질문은 적절히 거절한) 문항의 비율 |
 | `tool_selection` | 에이전트 평가에서 `expected_tools`가 있는 문항 중, 기대한 도구를 하나라도 쓴 비율. 높을수록 좋음 |
@@ -444,17 +447,23 @@ curl -X POST http://localhost:8080/api/company-report/chat \
 현재 채팅 화면은 `agent`를 보내지 않습니다. 에이전트 모드는 API 직접 호출이나 평가
 CLI로만 쓸 수 있습니다.
 
-### 로컬과 Claude 경로의 차이
+### provider별 차이
 
-| | 로컬(`provider: local`) | Claude(`provider: claude`) |
-|---|---|---|
-| 도구 호출 | Ollama Function Calling을 서버 안의 루프가 돌림 | 로그인된 `claude` CLI에 MCP stdio 서버(`app/agent/mcp_server.py`)를 붙여 CLI가 호출 |
-| 설정 | 컨텍스트 `AGENT_OLLAMA_NUM_CTX`(기본 16384) | 타임아웃 `AGENT_CLAUDE_TIMEOUT_SECONDS`(기본 180초) |
-| 기록 | 실행기가 메모리에 기록 | MCP 서버가 임시 파일에 JSON Lines로 남기고 끝난 뒤 읽음 |
+| | 로컬(`provider: local`) | DeepSeek(`provider: deepseek`) | Claude(`provider: claude`) |
+|---|---|---|---|
+| 호출 방식 | Ollama | OpenRouter의 OpenAI 호환 API(`openai` 라이브러리) | 로그인된 `claude` CLI(구독) |
+| 도구 호출 | Ollama Function Calling을 서버 안의 루프가 돌림 | 같은 루프를 OpenAI 방식 function calling으로 돌림 | CLI에 MCP stdio 서버(`app/agent/mcp_server.py`)를 붙여 CLI가 호출 |
+| 설정 | 컨텍스트 `AGENT_OLLAMA_NUM_CTX`(기본 16384) | `OPENROUTER_API_KEY`, 모델 `DEEPSEEK_MODEL`(기본 `deepseek/deepseek-v4.1-flash`) | 타임아웃 `AGENT_CLAUDE_TIMEOUT_SECONDS`(기본 180초) |
+| 기록 | 실행기가 메모리에 기록 | 실행기가 메모리에 기록 | MCP 서버가 임시 파일에 JSON Lines로 남기고 끝난 뒤 읽음 |
+
+DeepSeek는 선불 크레딧을 쓰는 API입니다. `.env`의 `OPENROUTER_API_KEY=` 뒤에 키를
+넣으세요. 키가 비어 있으면 앱은 뜨고, `deepseek`를 고른 요청만 실패합니다. 고정 경로
+(`agent` 없이)에서도 `provider: deepseek`로 답변할 수 있습니다.
 
 Claude 경로는 `--strict-mcp-config`로 우리 MCP 도구 6개만 허용하고 CLI 내장 도구(웹검색
-포함)는 막습니다. API 키는 쓰지 않으며 CLI 호출 환경에서도 `ANTHROPIC_API_KEY` 등을
-제거합니다. 고정 경로의 기존 옵션은 바뀌지 않습니다.
+포함)는 막습니다. 고정 경로와 에이전트 경로 모두 `--setting-sources ""`로 사용자 설정
+(전역 CLAUDE.md, 훅, 플러그인)을 읽지 않습니다. API 키는 쓰지 않으며 CLI 호출 환경에서도
+`ANTHROPIC_API_KEY` 등을 제거합니다.
 
 ### 웹검색 설정
 

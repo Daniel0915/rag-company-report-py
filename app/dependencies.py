@@ -17,6 +17,7 @@ from app.ingest.ledger import IndexLedger
 from app.ingest.runner import IngestRunner
 from app.llm.claude_cli import ClaudeCliClient
 from app.llm.ollama import OllamaClient
+from app.llm.openai_compat import OpenAICompatClient
 from app.naver.article_scraper import NaverArticleScraper
 from app.naver.search_scraper import NaverSearchScraper
 from app.services.admin_document import AdminDocumentService
@@ -35,6 +36,7 @@ class Container:
     driver: Driver
     ollama: OllamaClient
     claude: ClaudeCliClient
+    deepseek: OpenAICompatClient
     dart: DartApiClient
     search_scraper: NaverSearchScraper
     article_scraper: NaverArticleScraper
@@ -58,6 +60,7 @@ class Container:
         )
         ollama = OllamaClient(settings)
         claude = ClaudeCliClient(settings)
+        deepseek = OpenAICompatClient(settings)
         agent_ollama = OllamaClient(settings, options={"num_ctx": settings.agent_ollama_num_ctx})
         dart = DartApiClient(settings)
         search_scraper = NaverSearchScraper()
@@ -71,13 +74,14 @@ class Container:
         news_graph = NewsGraphService(driver)
         index_service = CompanyReportIndexService(dart, registry, disclosure_graph, ledger)
 
-        chat_service = CompanyChatService(ollama, claude, registry, disclosure_graph)
+        chat_service = CompanyChatService(ollama, claude, registry, disclosure_graph, deepseek)
 
         return cls(
             settings=settings,
             driver=driver,
             ollama=ollama,
             claude=claude,
+            deepseek=deepseek,
             dart=dart,
             search_scraper=search_scraper,
             article_scraper=article_scraper,
@@ -110,6 +114,7 @@ class Container:
     def close(self) -> None:
         self.ollama.close()
         self.agent_ollama.close()
+        self.deepseek.close()
         self.dart.close()
         self.search_scraper.close()
         self.article_scraper.close()

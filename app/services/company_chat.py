@@ -19,6 +19,7 @@ import re
 from dataclasses import dataclass
 
 from app.llm.claude_cli import ClaudeCliClient
+from app.llm.openai_compat import OpenAICompatClient
 from app.llm.ollama import OllamaClient
 from app.models import ChatResponse, ChatTurnDto, GraphExpansionRow, SourceItem
 from app.services.disclosure_graph import DisclosureGraphService
@@ -106,9 +107,11 @@ class CompanyChatService:
         claude: ClaudeCliClient,
         registry: CompanyVectorStoreRegistry,
         graph_service: DisclosureGraphService,
+        deepseek: OpenAICompatClient | None = None,
     ) -> None:
         self._ollama = ollama
         self._claude = claude
+        self._deepseek = deepseek
         self._registry = registry
         self._graph = graph_service
 
@@ -120,7 +123,7 @@ class CompanyChatService:
         history: list[ChatTurnDto],
         provider: str | None,
     ) -> ChatResponse:
-        """provider: "local"(Ollama, 기본값) 또는 "claude"(claude CLI)."""
+        """provider: "local"(Ollama, 기본값), "claude"(claude CLI), "deepseek"(OpenRouter API)."""
         if not corp_code or not corp_code.strip():
             raise ValueError("corpCode는 필수입니다")
         llm = _normalize_provider(provider)
@@ -208,7 +211,14 @@ class CompanyChatService:
     def _complete(self, llm: str, system_prompt: str, user_prompt: str) -> str:
         if llm == "claude":
             return self._claude.generate(system_prompt, user_prompt)
+        if llm == "deepseek":
+            return self.deepseek_client().generate(system_prompt, user_prompt)
         return self._ollama.generate(system_prompt, user_prompt)
+
+    def deepseek_client(self) -> OpenAICompatClient:
+        if self._deepseek is None:
+            raise RuntimeError("DeepSeek 클라이언트가 구성되지 않았습니다")
+        return self._deepseek
 
     def _build_graph_text(
         self, corp_code: str, question: str, llm: str, context: list[Document]
@@ -286,8 +296,8 @@ class CompanyChatService:
 
 
 def _normalize_provider(provider: str | None) -> str:
-    if provider == "claude":
-        return "claude"
+    if provider in ("claude", "deepseek"):
+        return provider
     return "local"
 
 

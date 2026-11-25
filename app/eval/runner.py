@@ -10,7 +10,7 @@ from datetime import datetime
 from neo4j import Driver
 
 from app.eval.dataset import Item
-from app.llm.claude_cli import CliCall, metered
+from app.llm.usage import LlmCall, metered
 from app.agent.service import AgentService
 from app.eval.metrics import (
     Retrieved,
@@ -76,8 +76,8 @@ def _empty_row(item: Item) -> dict:
     }
 
 
-def usage_row(calls: list[CliCall]) -> dict | None:
-    """답을 만드는 동안 일어난 claude 호출의 토큰과 비용 합계. 채점 호출은 넣지 않는다. claude를 안 썼으면 None."""
+def usage_row(calls: list[LlmCall]) -> dict | None:
+    """답을 만드는 동안 일어난 외부 LLM 호출(claude, deepseek)의 토큰과 비용 합계. 채점 호출은 넣지 않는다. 외부 LLM을 안 썼으면 None."""
     if not calls:
         return None
     return {

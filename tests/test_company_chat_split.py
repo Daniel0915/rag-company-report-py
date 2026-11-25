@@ -112,3 +112,27 @@ def test_retrieve_doc_type_forces_filter():
     service.retrieve("삼성전자 매출", "00126380", 6, doc_type="NEWS")
     assert registry.calls[-1]["top_k"] == 200
     assert registry.calls[-1]["metadata_filter"] == {"doc_type": "NEWS"}
+
+
+class FakeDeepSeek:
+    def generate(self, system_prompt, user_prompt):
+        if "Cypher" in user_prompt:
+            return "NONE"
+        return "딥시크 답변"
+
+
+def test_answer_routes_deepseek_provider_to_deepseek_client():
+    registry = FakeRegistry(_docs())
+    service = CompanyChatService(FakeOllama(), FakeClaude(), registry, FakeGraph(), FakeDeepSeek())
+    answer = service.answer("매출?", "00126380", _docs(), "deepseek")
+    assert answer.text == "딥시크 답변" and answer.prompt_tokens is None
+
+
+def test_deepseek_without_client_fails_clearly():
+    service, _ = _service(_docs())
+    try:
+        service.answer("매출?", "00126380", _docs(), "deepseek")
+    except RuntimeError as exc:
+        assert "DeepSeek" in str(exc)
+    else:
+        raise AssertionError("DeepSeek 클라이언트 없이 성공하면 안 된다")

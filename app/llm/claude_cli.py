@@ -10,45 +10,19 @@ import json
 import os
 import subprocess
 import tempfile
-from collections.abc import Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
-from dataclasses import dataclass
 
 from app.config import Settings
+from app.llm.usage import LlmCall, record
 
 
-@dataclass(frozen=True)
-class CliCall:
-    text: str
-    input_tokens: int  # 캐시 생성/읽기 토큰 포함
-    output_tokens: int
-    cost_usd: float  # CLI가 API 단가로 계산한 값. 구독에서는 실제로 청구되지 않는다
-
-
-_meter: ContextVar[list[CliCall] | None] = ContextVar("claude_cli_meter", default=None)
-
-
-@contextmanager
-def metered() -> Iterator[list[CliCall]]:
-    """이 블록 안에서 일어난 claude CLI 호출을 모은다. 평가가 문항별 토큰과 비용을 남기는 데 쓴다."""
-    calls: list[CliCall] = []
-    token = _meter.set(calls)
-    try:
-        yield calls
-    finally:
-        _meter.reset(token)
-
-
-def parse_cli_json(stdout: str) -> CliCall:
-    """`--output-format json` 출력에서 답과 사용량을 꺼내고, metered() 안이면 기록한다."""
+def parse_cli_json(stdout: str) -> str:
+    """`--output-format json` 출력에서 답을 꺼내고 사용량을 기록한다(metered() 안일 때만 남는다)."""
     try:
         payload = json.loads(stdout)
         answer = payload["result"]
         failed = bool(payload.get("is_error"))
         usage = payload.get("usage") or {}
-        call = CliCall(
-            text=str(answer).strip(),
+        call = LlmCall(
             input_tokens=sum(
                 int(usage.get(k) or 0)
                 for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
@@ -60,10 +34,8 @@ def parse_cli_json(stdout: str) -> CliCall:
         raise RuntimeError("claude CLI 출력을 해석하지 못했습니다") from e
     if failed:
         raise RuntimeError(f"claude CLI 오류: {answer}")
-    calls = _meter.get()
-    if calls is not None:
-        calls.append(call)
-    return call
+    record(call)
+    return str(answer).strip()
 
 
 def subscription_env() -> dict[str, str]:
@@ -111,4 +83,4 @@ class ClaudeCliClient:
             raise RuntimeError(
                 f"claude CLI 오류 (exit {completed.returncode}): {completed.stderr.strip()}"
             )
-        return parse_cli_json(completed.stdout).text
+        return parse_cli_json(completed.stdout)

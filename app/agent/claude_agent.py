@@ -100,6 +100,6 @@ def run_claude_agent(
             raise RuntimeError(
                 f"claude CLI 오류 (exit {completed.returncode}): {completed.stderr.strip()}"
             )
-        return ClaudeAgentResult(parse_cli_json(completed.stdout).text, read_records(trace_path))
+        return ClaudeAgentResult(parse_cli_json(completed.stdout), read_records(trace_path))
     finally:
         shutil.rmtree(workdir, ignore_errors=True)

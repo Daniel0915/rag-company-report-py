@@ -4,7 +4,8 @@ import subprocess
 import pytest
 
 from app.config import Settings
-from app.llm.claude_cli import ClaudeCliClient, metered, parse_cli_json
+from app.llm.claude_cli import ClaudeCliClient, parse_cli_json
+from app.llm.usage import metered
 
 _PAYLOAD = {
     "result": " 답 ",
@@ -20,8 +21,9 @@ _PAYLOAD = {
 
 
 def test_parse_cli_json_reads_answer_and_usage():
-    call = parse_cli_json(json.dumps(_PAYLOAD))
-    assert call.text == "답"
+    with metered() as calls:
+        assert parse_cli_json(json.dumps(_PAYLOAD)) == "답"
+    [call] = calls
     assert call.input_tokens == 632
     assert call.output_tokens == 7
     assert call.cost_usd == 0.0001

@@ -1,4 +1,4 @@
-"""에이전트 방식 답변. provider에 따라 로컬 도구 루프 또는 Claude CLI(MCP)로 돌리고,
+"""에이전트 방식 답변. provider에 따라 도구 루프(로컬 Ollama, DeepSeek API) 또는 Claude CLI(MCP)로 돌리고,
 도구 기록으로 응답의 sources/toolCalls를 만든다."""
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from datetime import date
 from app.agent.claude_agent import run_claude_agent
 from app.agent.context import open_tool_context
 from app.agent.executor import ToolExecutor
-from app.agent.loop import OllamaStepModel, run_tool_loop
+from app.agent.loop import OllamaStepModel, OpenAIStepModel, run_tool_loop
 from app.agent.prompts import build_agent_system_prompt
 from app.agent.tools import build_tools
 from app.agent.trace import ToolCallRecord
@@ -41,18 +41,22 @@ class AgentService:
         system_prompt = build_agent_system_prompt(
             company.name if company else corp_code, corp_code, date.today()
         )
-        if _normalize_provider(provider) == "claude":
+        llm = _normalize_provider(provider)
+        if llm == "claude":
             result = run_claude_agent(question, system_prompt, corp_code, self._settings)
             return AgentResult(result.answer, result.records, None)
+        model = (
+            OpenAIStepModel(self._chat.deepseek_client())
+            if llm == "deepseek"
+            else OllamaStepModel(self._ollama_agent)
+        )
 
         ctx, close = open_tool_context(self._settings, corp_code)
         try:
             executor = ToolExecutor(
                 build_tools(ctx), max_calls=self._settings.agent_max_tool_calls
             )
-            loop = run_tool_loop(
-                OllamaStepModel(self._ollama_agent), executor, system_prompt, question
-            )
+            loop = run_tool_loop(model, executor, system_prompt, question)
             return AgentResult(loop.answer, executor.records, loop.prompt_tokens)
         finally:
             close()
