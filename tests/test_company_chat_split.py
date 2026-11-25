@@ -64,7 +64,7 @@ class FakeClaude:
 
 def _service(docs):
     registry = FakeRegistry(docs)
-    service = CompanyChatService(FakeOllama(), FakeClaude(), FakeClaude(), registry, FakeGraph())
+    service = CompanyChatService(FakeOllama(), FakeClaude(), registry, FakeGraph())
     return service, registry
 
 
@@ -105,3 +105,10 @@ def test_chat_response_unchanged():
     resp = service.chat("매출?", "00126380", 6, [], "local")
     assert resp.answer == "답변"
     assert [s.rceptNo for s in resp.sources] == [d.metadata["rcept_no"] for d in docs]
+
+
+def test_retrieve_doc_type_forces_filter():
+    service, registry = _service(_docs())
+    service.retrieve("삼성전자 매출", "00126380", 6, doc_type="NEWS")
+    assert registry.calls[-1]["top_k"] == 200
+    assert registry.calls[-1]["metadata_filter"] == {"doc_type": "NEWS"}

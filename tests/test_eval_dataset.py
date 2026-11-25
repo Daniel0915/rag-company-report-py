@@ -208,3 +208,17 @@ def test_scalar_where_list_expected_is_rejected(tmp_path, field_line):
     )
     with pytest.raises(DatasetError, match=key):
         load_items(path)
+
+
+def test_expected_tools_validated(tmp_path):
+    path = tmp_path / "dataset.yaml"
+    save_items(path, [_item(expected_tools=["web_search"])])
+    assert load_items(path)[0].expected_tools == ["web_search"]
+
+    save_items(path, [_item()])
+    assert "expected_tools" not in path.read_text(encoding="utf-8")
+
+    for bad in (["google"], "web_search", [1]):
+        save_items(path, [_item(expected_tools=bad)])
+        with pytest.raises(DatasetError, match="q0001"):
+            load_items(path)

@@ -40,3 +40,23 @@ def test_embed_never_sends_options():
     client = _client({"temperature": 0}, {"embeddings": [[0.1]]}, captured)
     assert client.embed(["a"]) == [[0.1]]
     assert "options" not in captured
+
+
+def test_chat_messages_sends_tools_and_options():
+    captured: dict = {}
+    response = {"message": {"content": "", "tool_calls": []}, "prompt_eval_count": 5}
+    client = _client({"num_ctx": 16384}, response, captured)
+    msgs = [{"role": "user", "content": "q"}]
+    tools = [{"type": "function", "function": {"name": "t"}}]
+    assert client.chat_messages(msgs, tools) == response
+    assert captured["messages"] == msgs
+    assert captured["tools"] == tools
+    assert captured["options"] == {"num_ctx": 16384}
+    assert captured["stream"] is False
+
+
+def test_chat_messages_without_tools_omits_tools_key():
+    captured: dict = {}
+    client = _client(None, {"message": {"content": "답"}}, captured)
+    client.chat_messages([{"role": "user", "content": "q"}], [])
+    assert "tools" not in captured

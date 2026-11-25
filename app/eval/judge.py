@@ -23,8 +23,12 @@ class JudgeResult:
     reason: str
 
 
-def build_judge_prompt(item: Item, retrieved: list[Retrieved], answer: str) -> str:
-    evidence = "\n".join(f"{i}. {r.text}" for i, r in enumerate(retrieved, 1)) or "(검색된 근거 없음)"
+def build_judge_prompt(
+    item: Item, retrieved: list[Retrieved], answer: str, evidence_texts: list[str] | None = None
+) -> str:
+    """evidence_texts가 있으면(에이전트 경로: 모든 도구 결과) 검색 청크 대신 그 텍스트를 근거로 쓴다."""
+    texts = evidence_texts if evidence_texts is not None else [r.text for r in retrieved]
+    evidence = "\n".join(f"{i}. {t}" for i, t in enumerate(texts, 1)) or "(검색된 근거 없음)"
     expected = f"기대 답: {item.expected_answer}" if item.answerable else _UNANSWERABLE_NOTE
     return (
         f"질문: {item.question}\n\n"
@@ -58,10 +62,11 @@ def judge(
     retrieved: list[Retrieved],
     answer: str,
     on_error: Callable[[str], None] | None = None,
+    evidence_texts: list[str] | None = None,
 ) -> JudgeResult | None:
     """호출 예외나 파싱 실패면 None. 실패 사유는 on_error로 알린다."""
     try:
-        raw = claude.generate(_SYSTEM_PROMPT, build_judge_prompt(item, retrieved, answer))
+        raw = claude.generate(_SYSTEM_PROMPT, build_judge_prompt(item, retrieved, answer, evidence_texts))
     except Exception as exc:  # noqa: BLE001 - 채점은 문항별 선택 기능이라 어떤 호출 오류도 건너뛴다
         if on_error:
             on_error(f"{type(exc).__name__}: {exc}")

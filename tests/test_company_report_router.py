@@ -116,3 +116,102 @@ def test_index_runner_value_error_is_not_masked_as_422():
     res = TestClient(app, raise_server_exceptions=False).post("/api/company-report/index")
 
     assert res.status_code == 500
+
+
+def _chat_client(chat_service=None, agent_service=None) -> TestClient:
+    app = FastAPI()
+    app.include_router(company_report.router)
+    container = SimpleNamespace(chat_service=chat_service, agent_service=agent_service)
+    app.dependency_overrides[get_container] = lambda: container
+    return TestClient(app)
+
+
+def test_non_agent_response_json_unchanged():
+    from app.models import ChatResponse, SourceItem
+
+    chat = MagicMock()
+    chat.chat.return_value = ChatResponse(
+        answer="a",
+        sources=[SourceItem(corpName="c", reportNm="r", rceptNo="1", sectionTitle="s", docType=None)],
+    )
+    res = _chat_client(chat_service=chat).post(
+        "/api/company-report/chat", json={"question": "q", "corpCode": "00126380"}
+    )
+    assert set(res.json()) == {"answer", "sources"}
+    assert set(res.json()["sources"][0]) == {"corpName", "reportNm", "rceptNo", "sectionTitle", "docType"}
+    assert res.json()["sources"][0]["docType"] is None
+
+
+def test_agent_request_routes_to_agent_service():
+    from app.models import ChatResponse, ToolCallTrace
+
+    agent = MagicMock()
+    agent.chat.return_value = ChatResponse(
+        answer="a", sources=[],
+        toolCalls=[ToolCallTrace(name="calculate", arguments={"expression": "1+1"}, ok=True, summary="2")],
+    )
+    chat = MagicMock()
+    res = _chat_client(chat_service=chat, agent_service=agent).post(
+        "/api/company-report/chat",
+        json={"question": "q", "corpCode": "00126380", "agent": True, "provider": "claude"},
+    )
+    assert res.status_code == 200
+    assert res.json()["toolCalls"][0]["name"] == "calculate"
+    agent.chat.assert_called_once_with("q", "00126380", [], "claude")
+    chat.chat.assert_not_called()
+
+
+def _agent_post(agent):
+    return _chat_client(agent_service=agent).post(
+        "/api/company-report/chat", json={"question": "q", "corpCode": "00126380", "agent": True}
+    )
+
+
+def test_agent_failure_returns_502_without_leaking_message():
+    agent = MagicMock()
+    agent.chat.side_effect = RuntimeError("claude CLI 응답이 180초 안에 오지 않았습니다 secret")
+
+    res = _agent_post(agent)
+
+    assert res.status_code == 502
+    assert res.json()["detail"] == "에이전트 실행 실패"
+    assert "secret" not in res.text
+
+
+def test_agent_empty_corp_code_returns_400_without_calling_agent():
+    agent = MagicMock()
+    res = _chat_client(agent_service=agent).post(
+        "/api/company-report/chat", json={"question": "q", "corpCode": "  ", "agent": True}
+    )
+    assert res.status_code == 400
+    assert res.json()["detail"] == "corpCode는 필수입니다"
+    agent.chat.assert_not_called()
+
+
+def test_agent_internal_value_error_maps_to_502_without_internal_text():
+    agent = MagicMock()
+    agent.chat.side_effect = ValueError("Expecting value: line 1 column 1 (char 0) internal")
+
+    res = _agent_post(agent)
+
+    assert res.status_code == 502
+    assert res.json()["detail"] == "에이전트 실행 실패"
+    assert "internal" not in res.text
+
+
+def test_agent_web_source_serializes_all_source_keys():
+    from app.models import ChatResponse, SourceItem
+
+    agent = MagicMock()
+    agent.chat.return_value = ChatResponse(
+        answer="a",
+        sources=[SourceItem(
+            corpName=None, reportNm="기사", rceptNo="http://x", sectionTitle=None, docType="WEB"
+        )],
+        toolCalls=[],
+    )
+
+    source = _agent_post(agent).json()["sources"][0]
+
+    assert set(source) == {"corpName", "reportNm", "rceptNo", "sectionTitle", "docType"}
+    assert source["docType"] == "WEB"

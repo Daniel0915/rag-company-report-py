@@ -1,0 +1,53 @@
+"""도구 실행에 필요한 외부 연결(Neo4j, Ollama, DART, Tavily)을 만들고 닫는다."""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Callable
+
+from neo4j import GraphDatabase
+
+from app.agent.tavily import TavilyClient
+from app.agent.tools import ToolContext
+from app.config import Settings
+from app.dart.client import DartApiClient
+from app.llm.claude_cli import ClaudeCliClient
+from app.llm.ollama import OllamaClient
+from app.services.company_chat import CompanyChatService
+from app.services.disclosure_graph import DisclosureGraphService
+from app.vector.registry import CompanyVectorStoreRegistry
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def repo_settings() -> Settings:
+    """실행 위치와 무관하게 저장소 루트의 .env를 읽는다(MCP 서버는 CLI의 임시 폴더에서 뜬다)."""
+    return Settings(_env_file=REPO_ROOT / ".env")
+
+
+def open_tool_context(settings: Settings, corp_code: str) -> tuple[ToolContext, Callable[[], None]]:
+    """ToolContext와, 만든 연결을 모두 닫는 함수를 돌려준다."""
+    opened: list[Callable[[], None]] = []
+
+    def close() -> None:
+        for close_one in reversed(opened):
+            close_one()
+
+    try:
+        driver = GraphDatabase.driver(
+            settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password)
+        )
+        opened.append(driver.close)
+        ollama = OllamaClient(settings)
+        opened.append(ollama.close)
+        dart = DartApiClient(settings)
+        opened.append(dart.close)
+        tavily = TavilyClient(settings)
+        opened.append(tavily.close)
+        graph = DisclosureGraphService(driver)
+        registry = CompanyVectorStoreRegistry(driver, ollama, settings)
+        chat = CompanyChatService(ollama, ClaudeCliClient(settings), registry, graph)
+    except BaseException:
+        close()  # 일부만 열렸다면 연 것만 닫고 예외는 그대로 올린다
+        raise
+
+    return ToolContext(corp_code, chat, graph, dart, tavily, driver), close

@@ -10,14 +10,14 @@ from pathlib import Path
 
 from neo4j import GraphDatabase
 
+from app.agent.service import AgentService
 from app.config import get_settings
 from app.eval.compare import compare, format_comparison
 from app.eval.dataset import DatasetError, accept, file_hash, load_items
 from app.eval.generate import DEFAULT_QUOTA, EVAL_CLAUDE_TIMEOUT_SECONDS, generate, parse_quota
 from app.eval.judge import judge
-from app.eval.runner import build_run_file, format_summary, git_commit, index_snapshot, run, run_file_name
+from app.eval.runner import build_run_file, format_summary, git_commit, index_snapshot, run, run_agent, run_file_name
 from app.llm.claude_cli import ClaudeCliClient
-from app.llm.gemini import GeminiClient
 from app.llm.ollama import OllamaClient
 from app.services.company_chat import CompanyChatService
 from app.services.disclosure_graph import DisclosureGraphService
@@ -45,13 +45,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("--dataset", default=DEFAULT_DATASET)
 
     p_run = sub.add_parser("run", help="정답셋을 실제 채팅 경로로 돌려 채점하고 결과 파일을 남긴다")
-    p_run.add_argument("--provider", choices=["local", "gemini", "claude"], default="local")
+    p_run.add_argument("--provider", choices=["local", "claude"], default="local")
     p_run.add_argument("--top-k", type=int, default=6)
     p_run.add_argument("--judge", choices=["none", "claude"], default="none")
     p_run.add_argument("--temperature", type=float, default=0)
     p_run.add_argument("--seed", type=int, default=42)
     p_run.add_argument("--dataset", default=DEFAULT_DATASET)
     p_run.add_argument("--out-dir", default=DEFAULT_RUNS_DIR)
+    p_run.add_argument("--agent", action="store_true", help="고정 경로 대신 에이전트(도구 호출) 경로로 돌린다. --top-k는 쓰지 않는다")
     p_run.add_argument("--corp", help="이 기업의 문항만 돌린다")
 
     p_cmp = sub.add_parser("compare", help="두 결과 파일의 지표와 문항별 변화를 비교한다")
@@ -96,7 +97,6 @@ def _cmd_generate(args: argparse.Namespace) -> int:
 def _chat_model(settings, provider: str) -> str:
     return {
         "local": settings.ollama_chat_model,
-        "gemini": settings.gemini_model,
         "claude": settings.claude_model,
     }[provider]
 
@@ -123,11 +123,18 @@ def _cmd_run(args: argparse.Namespace) -> int:
     settings = get_settings()
     started = datetime.now()
     ollama = OllamaClient(settings, options={"temperature": args.temperature, "seed": args.seed})
+    ollama_agent = (
+        OllamaClient(
+            settings,
+            options={"temperature": args.temperature, "seed": args.seed, "num_ctx": settings.agent_ollama_num_ctx},
+        )
+        if args.agent
+        else None
+    )
     driver = GraphDatabase.driver(settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password))
     try:
         chat = CompanyChatService(
             ollama,
-            GeminiClient(settings),
             ClaudeCliClient(settings),
             CompanyVectorStoreRegistry(driver, ollama, settings),
             DisclosureGraphService(driver),
@@ -138,17 +145,18 @@ def _cmd_run(args: argparse.Namespace) -> int:
             judge_claude = ClaudeCliClient(settings.model_copy(update={"claude_timeout_seconds": EVAL_CLAUDE_TIMEOUT_SECONDS}))
             judge_fn = functools.partial(judge, judge_claude, on_error=judge_errors.append)
         index = index_snapshot(driver, {item.corp_code for item in items})
-        rows = run(
-            items,
-            chat,
-            args.top_k,
-            args.provider,
-            judge_fn,
-            on_progress=lambda n, total, item_id: print(f"[{n}/{total}] {item_id} ...", flush=True),
-        )
+        def on_progress(n: int, total: int, item_id: str) -> None:
+            print(f"[{n}/{total}] {item_id} ...", flush=True)
+
+        if ollama_agent is not None:
+            rows = run_agent(items, AgentService(settings, chat, ollama_agent), args.provider, judge_fn, on_progress)
+        else:
+            rows = run(items, chat, args.top_k, args.provider, judge_fn, on_progress=on_progress)
     finally:
         driver.close()
         ollama.close()
+        if ollama_agent is not None:
+            ollama_agent.close()
 
     config = {
         "provider": args.provider,
@@ -156,6 +164,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         "chat_model": _chat_model(settings, args.provider),
         "embedding_model": settings.ollama_embedding_model,
         "judge": args.judge,
+        "agent": args.agent,
         "temperature": args.temperature,
         "seed": args.seed,
         "dataset_path": args.dataset,
@@ -164,7 +173,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         "started_at": started.isoformat(),
     }
     run_file = build_run_file(config, index, rows)
-    out_path = Path(args.out_dir) / run_file_name(started, args.provider, args.top_k)
+    out_path = Path(args.out_dir) / run_file_name(started, args.provider, args.top_k, agent=args.agent)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(run_file, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"결과 파일: {out_path}")

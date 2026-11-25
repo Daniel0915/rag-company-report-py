@@ -26,14 +26,16 @@ class Settings(BaseSettings):
     dart_base_url: str = "https://opendart.fss.or.kr/api"
     dart_api_key: str = ""
 
-    # Gemini
-    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
-    gemini_api_key: str = ""
-    gemini_model: str = "gemini-flash-latest"
-
     # Claude CLI (구독 로그인 기반, API 키 사용 안 함)
     claude_model: str = "sonnet"
     claude_timeout_seconds: int = 60
+
+    # 에이전트(도구 호출)
+    tavily_api_key: str = ""
+    tavily_base_url: str = "https://api.tavily.com"
+    agent_ollama_num_ctx: int = 16384
+    agent_claude_timeout_seconds: int = 180
+    agent_max_tool_calls: int = 6
 
     # 사이드카 파일 / 업로드 경로
     company_report_index_file: str = "data/company-report-index.json"

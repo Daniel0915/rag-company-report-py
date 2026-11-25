@@ -172,3 +172,60 @@ def test_judge_failure_lines_count_unjudged_rows_and_show_first_error():
     ]
     assert cli.judge_failure_lines(rows, "RuntimeError: login") == ["채점 실패 1건", "첫 채점 오류: RuntimeError: login"]
     assert cli.judge_failure_lines(rows[1:2], None) == []
+
+
+class FakeAgent:
+    def __init__(self, fail=False):
+        self.fail = fail
+        self.calls = []
+
+    def run(self, question, corp_code, provider):
+        from app.agent.service import AgentResult
+        from app.agent.trace import ToolCallRecord
+
+        self.calls.append((question, corp_code, provider))
+        if self.fail:
+            raise RuntimeError("루프 실패")
+        chunk = {"kind": "chunk", "corp_name": "삼성", "report_nm": "보고서", "rcept_no": "1",
+                 "source_file": "a.xml", "section_order": 3, "section_title": "개요", "doc_type": None,
+                 "score": 0.9, "text": "매출액은 300조 8,709억원"}
+        rec = ToolCallRecord(1, "search_disclosures", {"query": "매출"}, True, "매출액 300조 8,709억원", [chunk])
+        return AgentResult("매출액은 300조 8,709억원입니다.", [rec], 1234)
+
+
+def test_run_agent_item_row_shape():
+    from app.eval.runner import run_agent_item
+
+    agent = FakeAgent()
+    seen = []
+    row = run_agent_item(
+        agent, _item(), "local",
+        lambda item, retrieved, answer, evidence_texts=None: seen.append((retrieved, evidence_texts)),
+    )
+    assert row["tool_calls"] == [{"seq": 1, "name": "search_disclosures", "arguments": {"query": "매출"}, "ok": True}]
+    assert row["metrics"]["tool_calls"] == 1 and row["metrics"]["hit_strict"] == 1
+    assert row["metrics"]["unsupported_numbers"] == 0
+    assert row["prompt_tokens"] == 1234 and row["error"] is None and row["error_stage"] is None
+    assert row["retrieved"][0]["section_order"] == 3
+    assert seen[0][0][0].section_order == 3
+    assert seen[0][1] == ["매출액 300조 8,709억원"]
+    assert agent.calls == [("매출액은?", "00126380", "local")]
+
+
+def test_run_agent_item_error_stages():
+    from app.eval.runner import run_agent_item
+
+    row = run_agent_item(FakeAgent(fail=True), _item(), "local", None)
+    assert row["metrics"] is None and row["error_stage"] == "agent" and row["tool_calls"] == []
+
+    def bad_judge(item, retrieved, answer, evidence_texts=None):
+        raise ValueError("판정 실패")
+
+    row = run_agent_item(FakeAgent(), _item(), "local", bad_judge)
+    assert row["error_stage"] == "score" and row["metrics"] is None
+
+
+def test_run_file_name_agent_marker():
+    started = datetime(2026, 11, 24, 15, 30, 0)
+    assert run_file_name(started, "local", 6) == "20261124-153000_local_k6.json"
+    assert run_file_name(started, "local", 6, agent=True) == "20261124-153000_local_k6_agent.json"

@@ -9,13 +9,13 @@ from dataclasses import dataclass
 from fastapi import Request
 from neo4j import Driver, GraphDatabase
 
+from app.agent.service import AgentService
 from app.config import Settings, get_settings
 from app.dart.client import DartApiClient
 from app.ingest.guard import count_disclosure_chunks
 from app.ingest.ledger import IndexLedger
 from app.ingest.runner import IngestRunner
 from app.llm.claude_cli import ClaudeCliClient
-from app.llm.gemini import GeminiClient
 from app.llm.ollama import OllamaClient
 from app.naver.article_scraper import NaverArticleScraper
 from app.naver.search_scraper import NaverSearchScraper
@@ -34,7 +34,6 @@ class Container:
     settings: Settings
     driver: Driver
     ollama: OllamaClient
-    gemini: GeminiClient
     claude: ClaudeCliClient
     dart: DartApiClient
     search_scraper: NaverSearchScraper
@@ -48,6 +47,8 @@ class Container:
     chunk_service: IndexedChunkService
     admin_service: AdminDocumentService
     chat_service: CompanyChatService
+    agent_ollama: OllamaClient
+    agent_service: AgentService
 
     @classmethod
     def build(cls) -> "Container":
@@ -56,8 +57,8 @@ class Container:
             settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password)
         )
         ollama = OllamaClient(settings)
-        gemini = GeminiClient(settings)
         claude = ClaudeCliClient(settings)
+        agent_ollama = OllamaClient(settings, options={"num_ctx": settings.agent_ollama_num_ctx})
         dart = DartApiClient(settings)
         search_scraper = NaverSearchScraper()
         article_scraper = NaverArticleScraper()
@@ -70,11 +71,12 @@ class Container:
         news_graph = NewsGraphService(driver)
         index_service = CompanyReportIndexService(dart, registry, disclosure_graph, ledger)
 
+        chat_service = CompanyChatService(ollama, claude, registry, disclosure_graph)
+
         return cls(
             settings=settings,
             driver=driver,
             ollama=ollama,
-            gemini=gemini,
             claude=claude,
             dart=dart,
             search_scraper=search_scraper,
@@ -100,14 +102,14 @@ class Container:
                 settings.admin_document_registry_file,
                 settings.admin_document_upload_dir,
             ),
-            chat_service=CompanyChatService(
-                ollama, gemini, claude, registry, disclosure_graph
-            ),
+            chat_service=chat_service,
+            agent_ollama=agent_ollama,
+            agent_service=AgentService(settings, chat_service, agent_ollama),
         )
 
     def close(self) -> None:
         self.ollama.close()
-        self.gemini.close()
+        self.agent_ollama.close()
         self.dart.close()
         self.search_scraper.close()
         self.article_scraper.close()

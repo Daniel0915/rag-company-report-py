@@ -9,7 +9,9 @@ LLM 추출 없이도 신뢰도 높은 그래프를 만들 수 있다.
 """
 from __future__ import annotations
 
-from neo4j import Driver
+from itertools import islice
+
+from neo4j import Driver, Query
 
 from app.dart.dto import DisclosureItem
 from app.models import FilerDisclosureDto, GraphExpansionRow, RelatedCompanyDto
@@ -128,21 +130,33 @@ class DisclosureGraphService:
             for r in records
         ]
 
-    def run_read_only_query(self, cypher: str) -> str | None:
+    def run_read_only_query(
+        self, cypher: str, max_rows: int | None = None, timeout: float | None = None
+    ) -> str | None:
         """
         LLM(Text2Cypher)이 생성한 쿼리를 읽기 전용 세션으로 실행한다. 세션 자체를 READ
         접근 모드로 열어서, 정규식 검사를 통과한 악의적/실수 쓰기 쿼리라도 Neo4j 서버 단에서
         다시 한번 거부되도록 이중으로 막는다. 결과가 없으면 None을 반환해 호출부가
         고정 쿼리로 폴백할 수 있게 한다.
+        max_rows/timeout(초)을 주면 서버 측 타임아웃과 행 수 상한을 건다(에이전트 경로).
+        상한에 걸려 잘렸으면 마지막 줄에 알린다.
         """
+        query = Query(cypher, timeout=timeout) if timeout is not None else cypher
         with self._driver.session(default_access_mode="READ") as session:
-            records = list(session.run(cypher))
+            result = session.run(query)
+            records = list(result if max_rows is None else islice(result, max_rows + 1))
         if not records:
             return None
-        return "\n".join(
+        truncated = max_rows is not None and len(records) > max_rows
+        if truncated:
+            records = records[:max_rows]
+        text = "\n".join(
             "- " + ", ".join(f"{key}={record[key]}" for key in record.keys())
             for record in records
         )
+        if truncated:
+            text += f"\n(결과가 {max_rows}행으로 잘렸습니다. LIMIT나 집계로 좁히세요)"
+        return text
 
     def expand_retrieved_context(
         self, corp_code: str, rcept_nos: list[str], article_urls: list[str], limit: int

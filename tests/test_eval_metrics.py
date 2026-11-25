@@ -145,3 +145,51 @@ def test_unsupported_numbers_ignores_numbers_in_cited_header():
     r = Retrieved("R1", "R1.xml", 3, "4. 매출 및 수주상황", None, "매출액은 300조원", "삼성전자", "사업보고서 (2024.12)")
     answer = "매출액은 300조원입니다. (근거: 사업보고서 (2024.12) > 4. 매출 및 수주상황)"
     assert score_item(_item(), [r], answer)["unsupported_numbers"] == 0
+
+
+def _rec(name, ok=True, sources=(), result_text=""):
+    from app.agent.trace import ToolCallRecord
+
+    return ToolCallRecord(seq=1, name=name, arguments={}, ok=ok, result_text=result_text, sources=list(sources))
+
+
+def _tool_item(**kw):
+    return Item(id="q1", corp_code="00126380", question="매출액은?", answerable=False, origin="manual", **kw)
+
+
+def test_score_tools_selection_and_unnecessary_web():
+    from app.eval.metrics import score_tools
+
+    item = _tool_item(expected_tools=["get_financials"])
+    recs = [_rec("search_disclosures", ok=True), _rec("web_search", ok=False)]
+    assert score_tools(item, recs) == {"tool_calls": 2, "tool_errors": 1, "tool_selection": 0, "unnecessary_web": 1}
+    assert set(score_tools(_tool_item(), recs)) == {"tool_calls", "tool_errors"}
+    ok = score_tools(_tool_item(expected_tools=["web_search"]), recs)
+    assert ok["tool_selection"] == 1 and ok["unnecessary_web"] == 0
+
+
+def _chunk(order):
+    return {"kind": "chunk", "corp_name": "삼성", "report_nm": "사업보고서", "rcept_no": "R1",
+            "source_file": "R1.xml", "section_order": order, "section_title": "개요", "doc_type": None,
+            "score": 0.5, "text": f"본문{order}"}
+
+
+def test_retrieved_from_records_keeps_call_order():
+    from app.eval.metrics import retrieved_from_records
+
+    recs = [
+        _rec("search_disclosures", sources=[_chunk(1)]),
+        _rec("web_search", sources=[{"kind": "web", "url": "u"}]),
+        _rec("search_disclosures", sources=[_chunk(2), {"kind": "other"}]),
+    ]
+    got = retrieved_from_records(recs)
+    assert [r.section_order for r in got] == [1, 2]
+    assert got[0].text == "본문1" and got[0].corp_name == "삼성" and got[0].score == 0.5
+    assert retrieved_from_records([_rec("web_search")]) == []
+
+
+def test_score_item_uses_context_texts_for_numbers():
+    item = _tool_item()
+    answer = "영업이익은 6,567,000백만원입니다."
+    assert score_item(item, [], answer)["unsupported_numbers"] == 1
+    assert score_item(item, [], answer, context_texts=["영업이익 6567000백만원"])["unsupported_numbers"] == 0

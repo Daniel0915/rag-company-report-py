@@ -4,7 +4,7 @@ DART 공시 원문(사업/반기/분기보고서 + 지분공시)과 뉴스를 �
 벡터 검색으로는 안 되는 지분 관계(제출인)는 DisclosureGraphService의 그래프에서 보강한다.
 
 그래프 보강은 집계/랭킹/교집합처럼 고정 조회 하나로 못 푸는 질문일 때, 답변에 쓰기로
-선택된 provider(local/gemini/claude)가 그 자리에서 Cypher를 생성해(Text2Cypher) 읽기 전용으로
+선택된 provider(local/claude)가 그 자리에서 Cypher를 생성해(Text2Cypher) 읽기 전용으로
 실행하는 방식으로 확장된다. 생성 실패/쓰기 구문 포함/실행 오류 시에는 벡터 검색으로 이미
 뽑힌 청크(rcept_no/article_url)에 앵커된 고정 Cypher(VectorCypher)로 안전하게 폴백한다.
 
@@ -19,7 +19,6 @@ import re
 from dataclasses import dataclass
 
 from app.llm.claude_cli import ClaudeCliClient
-from app.llm.gemini import GeminiClient
 from app.llm.ollama import OllamaClient
 from app.models import ChatResponse, ChatTurnDto, GraphExpansionRow, SourceItem
 from app.services.disclosure_graph import DisclosureGraphService
@@ -104,13 +103,11 @@ class CompanyChatService:
     def __init__(
         self,
         ollama: OllamaClient,
-        gemini: GeminiClient,
         claude: ClaudeCliClient,
         registry: CompanyVectorStoreRegistry,
         graph_service: DisclosureGraphService,
     ) -> None:
         self._ollama = ollama
-        self._gemini = gemini
         self._claude = claude
         self._registry = registry
         self._graph = graph_service
@@ -123,12 +120,12 @@ class CompanyChatService:
         history: list[ChatTurnDto],
         provider: str | None,
     ) -> ChatResponse:
-        """provider: "local"(Ollama, 기본값), "gemini", 또는 "claude"(claude CLI)."""
+        """provider: "local"(Ollama, 기본값) 또는 "claude"(claude CLI)."""
         if not corp_code or not corp_code.strip():
             raise ValueError("corpCode는 필수입니다")
         llm = _normalize_provider(provider)
 
-        search_query = self._rewrite_query(question, history, llm) if history else question
+        search_query = self.rewrite_query(question, history, llm) if history else question
         context = self.retrieve(search_query, corp_code, top_k, news_query=question)
         answer = self.answer(question, corp_code, context, provider, search_query=search_query)
 
@@ -145,13 +142,26 @@ class CompanyChatService:
         return ChatResponse(answer=answer.text, sources=sources)
 
     def retrieve(
-        self, question: str, corp_code: str, top_k: int, news_query: str | None = None
+        self,
+        question: str,
+        corp_code: str,
+        top_k: int,
+        news_query: str | None = None,
+        *,
+        doc_type: str | None = None,
     ) -> list[Document]:
         """
         벡터 검색 단계. 임베딩은 question으로, 뉴스 키워드 판정은 news_query(없으면 question)로 한다 -
         chat()은 재작성된 질문으로 검색하되 뉴스 여부는 사용자가 쓴 원래 질문으로 판정하기 때문이다.
+        doc_type이 주어지면(에이전트 도구) 키워드 판정과 상관없이 그 값으로 필터를 건다.
         """
-        news_only = bool(NEWS_KEYWORD.search(news_query if news_query is not None else question))
+        if doc_type is not None:
+            metadata_filter = {"doc_type": doc_type}
+        elif NEWS_KEYWORD.search(news_query if news_query is not None else question):
+            metadata_filter = {"doc_type": "NEWS"}
+        else:
+            metadata_filter = None
+        news_only = metadata_filter is not None
         # 메타데이터 필터는 ANN 검색 이후 후보군(topK개)에 대한 WHERE절로 적용된다 -
         # topK를 그대로 쓰면 상위 후보에 NEWS 청크가 하나도 안 걸려 필터링 후 0건이 되기 쉽다.
         # 필터가 걸릴 땐 후보군을 넉넉히 가져온 뒤 잘라낸다.
@@ -160,7 +170,7 @@ class CompanyChatService:
         context = self._registry.for_company(corp_code).similarity_search(
             query=question,
             top_k=ann_top_k,
-            metadata_filter={"doc_type": "NEWS"} if news_only else None,
+            metadata_filter=metadata_filter,
         )
         if news_only and len(context) > top_k:
             context = context[:top_k]
@@ -185,7 +195,7 @@ class CompanyChatService:
             return Answer(text=reply.content, prompt_tokens=reply.prompt_eval_count)
         return Answer(text=self._complete(llm, system_prompt, question), prompt_tokens=None)
 
-    def _rewrite_query(self, question: str, history: list[ChatTurnDto], llm: str) -> str:
+    def rewrite_query(self, question: str, history: list[ChatTurnDto], llm: str) -> str:
         history_text = "\n".join(
             ("사용자: " if turn.role == "user" else "어시스턴트: ") + turn.content
             for turn in history
@@ -196,8 +206,6 @@ class CompanyChatService:
         return rewritten.strip() if rewritten and rewritten.strip() else question
 
     def _complete(self, llm: str, system_prompt: str, user_prompt: str) -> str:
-        if llm == "gemini":
-            return self._gemini.generate(system_prompt, user_prompt)
         if llm == "claude":
             return self._claude.generate(system_prompt, user_prompt)
         return self._ollama.generate(system_prompt, user_prompt)
@@ -278,8 +286,6 @@ class CompanyChatService:
 
 
 def _normalize_provider(provider: str | None) -> str:
-    if provider in ("gemini", "cloud"):
-        return "gemini"
     if provider == "claude":
         return "claude"
     return "local"

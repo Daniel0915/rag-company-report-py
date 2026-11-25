@@ -24,6 +24,9 @@ HIGHER_IS_BETTER: dict[str, bool] = {
     "judge_correct": True,
     "false_refusal": False,
     "unsupported_numbers": False,
+    "tool_selection": True,
+    "unnecessary_web": False,
+    "tool_errors": False,
 }
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,6 +9,8 @@ from app.dependencies import Container, get_container
 from app.ingest.lock import IngestBusyError
 from app.models import ChatRequest, ChatResponse, IndexResult, WatchedCompanyDto
 from app.watchlist import WATCHLIST
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -48,9 +51,21 @@ def index(
     return summary.results
 
 
-@router.post("/api/company-report/chat", response_model=ChatResponse)
+@router.post(
+    "/api/company-report/chat", response_model=ChatResponse, response_model_exclude_unset=True
+)
 def chat(request: ChatRequest, container: Container = Depends(get_container)) -> ChatResponse:
     top_k = 4 if request.topK <= 0 else min(max(request.topK, 1), 20)
+    if request.agent:
+        if not request.corpCode or not request.corpCode.strip():
+            raise HTTPException(status_code=400, detail="corpCode는 필수입니다")
+        try:
+            return container.agent_service.chat(
+                request.question, request.corpCode, request.history, request.provider
+            )
+        except Exception as e:  # ValueError(JSON/검증 오류 포함)도 내부 문구를 노출하지 않고 502로 보낸다
+            logger.exception("에이전트 실행 실패")
+            raise HTTPException(status_code=502, detail="에이전트 실행 실패") from e
     try:
         return container.chat_service.chat(
             request.question, request.corpCode, top_k, request.history, request.provider

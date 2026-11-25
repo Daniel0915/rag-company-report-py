@@ -1,3 +1,4 @@
+import httpx
 import pytest
 
 from app.config import Settings
@@ -37,3 +38,37 @@ def test_parse_corp_code_xml():
     codes = DartApiClient._parse_corp_code_xml(CORP_CODE_XML)
     assert [c.corp_code for c in codes] == ["00126380", "01568413"]
     assert codes[1].corp_name == "F&F"
+
+
+def _accounts_client(payload):
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["path"] = request.url.path
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=payload)
+
+    client = DartApiClient(Settings(dart_api_key="k"))
+    client._client = httpx.Client(base_url="http://x/api", transport=httpx.MockTransport(handler))
+    return client, captured
+
+
+def test_fetch_key_accounts_returns_list_and_empty_on_no_data():
+    client, captured = _accounts_client(
+        {"status": "000", "list": [{"account_nm": "매출액", "thstrm_amount": "1,000"}]}
+    )
+    rows = client.fetch_key_accounts("00126380", 2024, "11011")
+    assert [r["account_nm"] for r in rows] == ["매출액"]
+    assert captured["path"].endswith("/fnlttSinglAcnt.json")
+    assert captured["params"]["bsns_year"] == "2024"
+    assert captured["params"]["reprt_code"] == "11011"
+    assert captured["params"]["corp_code"] == "00126380"
+
+    empty, _ = _accounts_client({"status": "013", "message": "조회된 데이타가 없습니다."})
+    assert empty.fetch_key_accounts("00126380", 2024, "11011") == []
+
+
+def test_fetch_key_accounts_raises_dart_error_on_other_status():
+    client, _ = _accounts_client({"status": "020", "message": "한도초과"})
+    with pytest.raises(DartApiError):
+        client.fetch_key_accounts("00126380", 2024, "11011")

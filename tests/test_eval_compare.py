@@ -117,3 +117,18 @@ def test_format_shows_n_and_direction_markers():
     assert "나빠짐" in lines["false_refusal"]
     assert "좋아짐" not in lines["prompt_tokens"] and "나빠짐" not in lines["prompt_tokens"]
     assert "좋아짐" not in lines["mrr"] and "나빠짐" not in lines["mrr"]
+
+
+def test_compare_marks_tool_metric_direction():
+    def overall(web, selection, calls):
+        return {
+            "unnecessary_web": {"mean": web, "n": 10},
+            "tool_selection": {"mean": selection, "n": 10},
+            "tool_calls": {"mean": calls, "n": 10},
+        }
+
+    text = format_comparison(compare(_run([], overall=overall(0.1, 0.5, 2)), _run([], overall=overall(0.3, 0.8, 3))))
+    lines = {line.split("|")[0].strip(): line for line in text.splitlines() if "|" in line}
+    assert lines["unnecessary_web"].endswith("나빠짐")
+    assert lines["tool_selection"].endswith("좋아짐")
+    assert "좋아짐" not in lines["tool_calls"] and "나빠짐" not in lines["tool_calls"]

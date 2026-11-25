@@ -5,14 +5,14 @@ DART 전자공시(사업/반기/분기보고서 + 지분공시)와 관련 뉴스
 불필요)에서 가져와 기업별 Neo4j 벡터 인덱스에 함께 저장합니다. 지분공시 제출인과
 뉴스 기사 관계는 그래프로도 저장해서, 벡터 검색(Vector Retriever)만으로 안 되는
 집계·랭킹 질문은 LLM이 즉석에서 만든 Cypher(Text2Cypher)로 답합니다. 로컬(Ollama)/
-Gemini/Claude 중 답변 모델을 골라 비교할 수 있고, 답변은 마크다운으로 렌더링됩니다.
+Claude 중 답변 모델을 골라 비교할 수 있고, 답변은 마크다운으로 렌더링됩니다.
 
 ## 사용 화면
 
-![답변 모델(로컬/Gemini/Claude) 토글, 검색 범위(topK) 조절, 마크다운으로 렌더링된 답변(표/목록/굵게)](docs/screenshots/02-chat-controls.png)
+![답변 모델(로컬/Claude) 토글, 검색 범위(topK) 조절, 마크다운으로 렌더링된 답변(표/목록/굵게)](docs/screenshots/02-chat-controls.png)
 
 기업을 고르고 질문하면 답변과 함께 근거 공시(회사명/보고서명/접수번호/섹션)를
-보여줍니다. 답변 모델(로컬/Gemini/Claude)과 검색 범위(topK)를 조절할 수 있고,
+보여줍니다. 답변 모델(로컬/Claude)과 검색 범위(topK)를 조절할 수 있고,
 표/목록이 포함된 답변은 마크다운으로 렌더링됩니다.
 
 ![응답을 기다리는 동안 표시되는 타이핑 인디케이터](docs/screenshots/04-response-loading.png)
@@ -41,7 +41,7 @@ flowchart LR
     FE["프론트엔드\n채팅 · 관리자 페이지"]
     BE["FastAPI 백엔드\n색인 · 검색 · 채팅"]
     NEO4J[("Neo4j\n벡터 인덱스 + 그래프")]
-    LLM[("LLM\nOllama · Gemini · Claude")]
+    LLM[("LLM\nOllama · Claude")]
     SRC[("DART 공시 · 네이버 뉴스")]
 
     FE <-- "질문 / 답변" --> BE
@@ -60,7 +60,7 @@ flowchart LR
   그래프 질문이면 LLM이 즉석에서 Cypher를 생성해 실행(Text2Cypher), 실패하면 고정
   조회로 폴백합니다.
 - **③ 답변**: 대화 히스토리가 있으면 먼저 후속 질문을 독립형으로 재작성한 뒤, 위
-  검색 결과를 근거로 로컬(Ollama)/Gemini/Claude 중 선택한 모델이 답변을 생성합니다.
+  검색 결과를 근거로 로컬(Ollama)/Claude 중 선택한 모델이 답변을 생성합니다.
 
 ## 그래프 DB 스키마
 
@@ -134,14 +134,14 @@ graph LR
 
 - **Backend**: Python 3.11+, FastAPI + Uvicorn, Pydantic Settings(`.env` 설정)
 - **LLM/임베딩**: Ollama (`qwen2.5:3b` 채팅, `bge-m3` 임베딩) 기본, 선택적으로
-  Google Gemini(`httpx`로 generateContent REST 직접 호출) 또는 Claude(로그인된
+  Claude(로그인된
   `claude -p` CLI를 서브프로세스로 호출 — API 키 없이 claude.ai 구독 계정 그대로 사용)
 - **벡터스토어**: Neo4j 공식 Python 드라이버로 직접 구현(기업마다 별도 라벨/인덱스로
   분리), 지분공시·뉴스 그래프도 같은 Neo4j에 저장. 청킹은 `tiktoken` 토큰 기준
 - **문서 파싱**: 공시 XML은 `lxml`, PDF는 `pypdf`
 - **뉴스 수집**: `httpx` + BeautifulSoup으로 네이버 뉴스 검색결과/기사 페이지를 직접
   파싱 (Selenium·공식 API 키 불필요)
-- **외부 API**: DART(전자공시시스템) Open API, Google Gemini API(선택)
+- **외부 API**: DART(전자공시시스템) Open API
 - **Frontend**: Vue 3 + TypeScript + Vite, 대화 히스토리는 브라우저 IndexedDB에 저장.
   답변은 `marked`로 마크다운 파싱 후 `DOMPurify`로 sanitize해 렌더링. 빌드 결과는
   `static/`에 커밋되어 있어 Node 없이도 바로 실행됩니다.
@@ -196,9 +196,6 @@ cp .env.example .env
 ```
 
 - `DART_API_KEY` (필수): [DART Open API](https://opendart.fss.or.kr)에서 발급
-- `GEMINI_API_KEY` (선택): 채팅에서 "Gemini" 모델을 쓸 때만 필요.
-  [Google AI Studio](https://aistudio.google.com/apikey)에서 발급(`AIzaSy...` 형태).
-  없으면 Gemini 선택 시 에러가 나고, 로컬(Ollama)만으로도 정상 동작합니다.
 - `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD`, `OLLAMA_BASE_URL` /
   `OLLAMA_CHAT_MODEL` / `OLLAMA_EMBEDDING_MODEL`: 기본값과 다를 때만 수정
 
@@ -245,7 +242,7 @@ cp -r ../src/main/resources/static ../../rag-company-report-py/static
 1. 기업 선택 후 "최신 공시 가져오기"로 최근 2년치 공시(정기공시 + 지분공시) 색인
 2. 관리자 페이지(`/admin.html`)에서 "최신 뉴스 가져오기"로 워치리스트 기업의 최신
    뉴스도 함께 색인 (`POST /api/admin/news/fetch`)
-3. 채팅창 상단에서 답변 모델(로컬/Gemini/Claude)과 검색 범위(topK) 선택
+3. 채팅창 상단에서 답변 모델(로컬/Claude)과 검색 범위(topK) 선택
 4. 궁금한 내용 질문 (예: "사업의 개요 알려줘", "최근 관련 뉴스 알려줘") — 이전 대화가
    있으면 자동으로 참고됨
 5. 답변 하단의 "출처 (공시·뉴스)"에서 근거가 된 보고서/기사 확인 — 뉴스는 "뉴스" 태그와
@@ -356,10 +353,24 @@ python -m app.eval compare eval/runs/A.json eval/runs/B.json
   origin: manual
 ```
 
-**실행 옵션**: `--provider`는 `local`(기본), `gemini`, `claude`입니다. `--corp CODE`는 그 기업의
+**기대 도구(`expected_tools`)**는 에이전트 평가용 선택 필드입니다. 문항을 풀 때 쓰면 맞는
+도구 이름을 목록으로 적으며, 이 중 하나라도 쓰면 `tool_selection`이 1이 됩니다. 비워 두면 그
+문항은 `tool_selection`, `unnecessary_web` 집계에서 빠지고, 고정 경로 평가에서는 쓰지 않습니다.
+도구 이름은 아래 에이전트 모드의 6개 중에서 골라야 하며, 다른 이름이면 정답셋을 읽을 때 거부됩니다.
+
+```yaml
+- id: m0002
+  corp_code: "00126380"
+  question: 삼성전자 2024년 영업이익은?
+  answerable: true
+  expected_tools: [get_financials]
+  # expected_answer, must_include, expected_sections 등은 기존과 같습니다
+```
+
+**실행 옵션**: `--provider`는 `local`(기본), `claude`입니다. `--corp CODE`는 그 기업의
 문항만 돌립니다. Ollama는 결과가 흔들리지 않도록 기본으로 temperature 0, seed 42로 호출하며
 `--temperature`, `--seed`로 바꿀 수 있습니다. 쓴 값은 결과 파일에 남고, 채팅 API의 호출에는
-영향이 없습니다. Gemini와 Claude는 seed를 고정할 수 없어 비교 결과가 조금 흔들립니다.
+영향이 없습니다. Claude는 seed를 고정할 수 없어 비교 결과가 조금 흔들립니다.
 `--judge claude`는 Claude가 답변의 근거 충실도와 정확성을 추가로 채점하는 옵션입니다(기본은
 규칙 채점만). 답변 provider도 `claude`이면 자기 답을 자기가 채점한다는 경고가 나옵니다.
 
@@ -387,6 +398,94 @@ YAML 주석은 보존되지 않습니다.
 | `prompt_tokens` | 문항당 평균. Ollama가 실제로 읽은 입력 토큰 수(local만) |
 | `faithfulness` | `--judge claude`일 때. 답변의 사실 주장 중 근거로 뒷받침되는 비율(0~1) |
 | `judge_correct` | `--judge claude`일 때. 답변이 기대 답과 일치하는(답 없는 질문은 적절히 거절한) 문항의 비율 |
+| `tool_selection` | 에이전트 평가에서 `expected_tools`가 있는 문항 중, 기대한 도구를 하나라도 쓴 비율. 높을수록 좋음 |
+| `unnecessary_web` | 에이전트 평가에서 `expected_tools`가 있는 문항 중, `web_search`가 기대 목록에 없는데 쓴 비율. 낮을수록 좋음 |
+| `tool_errors` | 에이전트 평가에서 문항당 평균 실패한 도구 호출 수(`ok=false`). 낮을수록 좋음 |
+| `tool_calls` | 에이전트 평가에서 문항당 평균 도구 호출 수. 좋고 나쁨의 방향은 매기지 않음 |
+
+## 에이전트 모드
+
+기본 채팅은 검색 방식이 고정되어 있습니다(Vector Retriever, 필요하면 Text2Cypher). 에이전트
+모드는 모델이 질문에 맞는 도구를 직접 골라 여러 번 부르고, 그 결과를 근거로 답합니다.
+요청에 `"agent": true`를 넣을 때만 켜지며, 넣지 않으면 응답 JSON은 이전과 완전히 같습니다
+(`answer`, `sources`만).
+
+### 도구 6개
+
+| 도구 | 하는 일 |
+|---|---|
+| `search_disclosures` | 공시 원문·뉴스 청크 벡터 검색. `doc_type=NEWS`면 뉴스만 |
+| `get_financials` | DART 주요계정(매출액, 영업이익, 당기순이익 등) 조회. `year`, `report`(annual/half/q1/q3) 필수 |
+| `list_recent_disclosures` | 최근 공시 목록. `since`, 유형(A~J), `limit` 필터 |
+| `query_ownership_graph` | 지분공시 그래프에 읽기 전용 Cypher 실행(쓰기 구문은 거부, 결과 최대 200행, 실행 10초 제한) |
+| `calculate` | 사칙연산과 괄호만 계산(증감률 등) |
+| `web_search` | Tavily 웹검색. 공시·뉴스에 없는 정보에만 쓰도록 프롬프트로 안내 |
+
+도구는 `app/agent/tools.py`에 한 번만 정의되고, 로컬 모델과 Claude가 같은 정의를 씁니다.
+워치리스트 밖 `corp_code`, 빈 결과, 외부 API 오류는 예외 대신 실패 결과(`ok=false`)나
+"결과 없음"으로 모델에 돌려줍니다.
+
+### 요청 예시
+
+```bash
+curl -X POST http://localhost:8080/api/company-report/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"question": "삼성전자 2024년 영업이익은?", "corpCode": "00126380", "provider": "local", "agent": true}'
+```
+
+응답에는 `answer`, `sources`에 더해 `toolCalls`(`name`, `arguments`, `ok`, `summary`)가
+호출 순서대로 들어갑니다. `summary`는 도구 결과 앞 200자입니다. 웹검색 결과는 `sources`에
+`docType`이 `"WEB"`인 항목으로 들어가며, 이때 `reportNm`은 페이지 제목, `rceptNo`는 URL입니다.
+`history`가 있으면 후속 질문을 독립형 질문으로 재작성한 뒤 에이전트에 넘깁니다.
+`corpCode`가 비면 400, 에이전트 실행이 실패하면(모델/CLI 오류, 시간 초과 등) HTTP 502와
+`"에이전트 실행 실패"`를 돌려줍니다. 에이전트 모드에서는 `topK`를 쓰지 않으며 값을 줘도
+무시됩니다(검색 청크 수는 모델이 도구 인자로 정합니다).
+
+현재 채팅 화면은 `agent`를 보내지 않습니다. 에이전트 모드는 API 직접 호출이나 평가
+CLI로만 쓸 수 있습니다.
+
+### 로컬과 Claude 경로의 차이
+
+| | 로컬(`provider: local`) | Claude(`provider: claude`) |
+|---|---|---|
+| 도구 호출 | Ollama Function Calling을 서버 안의 루프가 돌림 | 로그인된 `claude` CLI에 MCP stdio 서버(`app/agent/mcp_server.py`)를 붙여 CLI가 호출 |
+| 설정 | 컨텍스트 `AGENT_OLLAMA_NUM_CTX`(기본 16384) | 타임아웃 `AGENT_CLAUDE_TIMEOUT_SECONDS`(기본 180초) |
+| 기록 | 실행기가 메모리에 기록 | MCP 서버가 임시 파일에 JSON Lines로 남기고 끝난 뒤 읽음 |
+
+Claude 경로는 `--strict-mcp-config`로 우리 MCP 도구 6개만 허용하고 CLI 내장 도구(웹검색
+포함)는 막습니다. API 키는 쓰지 않으며 CLI 호출 환경에서도 `ANTHROPIC_API_KEY` 등을
+제거합니다. 고정 경로의 기존 옵션은 바뀌지 않습니다.
+
+### 웹검색 설정
+
+`web_search`는 Tavily 키가 필요합니다. 프로젝트 루트 `.env`의 `TAVILY_API_KEY=` 뒤에
+본인 키를 넣으세요(`.env.example`에는 빈 값만 있습니다). 키를 저장소, 로그, 결과 파일에
+남기지 마세요. 키가 비어 있으면 `web_search`는 실패 결과를 돌려주고 나머지 도구는
+그대로 동작합니다.
+
+### 호출 한도와 반복 차단
+
+질문 하나에 도구는 최대 6회(`AGENT_MAX_TOOL_CALLS`)까지 실행됩니다. 한도를 넘은 호출은
+실행하지 않고 오류 결과를 돌려 "지금까지의 근거로 답하라"고 알립니다. 같은 도구를 같은
+인자로 다시 부르면 마찬가지로 실행하지 않고 오류 결과를 돌려줍니다. 스키마에 맞지 않는
+인자도 실행 전에 오류 결과로 거절합니다. 로컬 경로는 한도 뒤에도 모델이 도구만 부르면
+도구 없이 최종 답변을 한 번 더 요청합니다.
+
+### 에이전트 평가
+
+```bash
+python -m app.eval run --provider local --agent
+python -m app.eval compare eval/runs/A.json eval/runs/B.json
+```
+
+`--agent`는 고정 경로 대신 에이전트 경로로 정답셋을 돌립니다(`--top-k`는 쓰지 않음).
+`--corp`, `--judge`, `--temperature`, `--seed`, `--provider`는 그대로 쓸 수 있고, 결과
+파일 이름 끝에 `_agent`가 붙으며 문항마다 `tool_calls`(seq, name, arguments, ok)가 기록됩니다.
+검색 지표(`hit_*`, `mrr`)는 `search_disclosures`가 돌려준 청크로 셉니다. 검색을 여러 번 하면
+청크 목록을 이어 붙여 `mrr`을 계산하므로 고정 경로의 단일 top-k 목록과 엄밀히 같은 기준이
+아닙니다(`hit_strict`/`hit_loose`는 비교할 수 있습니다). `--judge`의 근거는 `search_disclosures`
+청크뿐 아니라 모든 도구 결과 텍스트입니다. 새 지표는 위
+답변 평가 절의 표(`tool_selection`, `unnecessary_web`, `tool_errors`, `tool_calls`)를 보세요.
 
 ## API 엔드포인트
 
@@ -394,7 +493,7 @@ YAML 주석은 보존되지 않습니다.
 |---|---|---|
 | GET | `/api/company-report/watchlist` | 워치리스트 기업 목록 조회 |
 | POST | `/api/company-report/index?bgn_de=&end_de=` | 워치리스트 기업의 공시 색인. 날짜를 모두 생략하면 `update`와 같이 마지막 성공 실행 이후 새 공시(7일 겹침)만 수집하고, `bgn_de`와 `end_de`를 둘 다 주면 그 기간을 backfill처럼 수집. 날짜를 하나만 주거나 형식이 틀리면 422, 이미 수집 중이면 409, DART 일일 한도 초과면 503 |
-| POST | `/api/company-report/chat` | `{ question, corpCode, history?, topK?, provider? }` → 답변 + 근거(공시/뉴스) 목록 |
+| POST | `/api/company-report/chat` | `{ question, corpCode, history?, topK?, provider?, agent? }` → 답변 + 근거(공시/뉴스) 목록. `agent: true`면 도구 호출 기록(`toolCalls`)도 포함([에이전트 모드](#에이전트-모드)) |
 | POST | `/api/admin/news/fetch` | 워치리스트 전체 기업의 최신 뉴스를 검색·크롤링해 색인 |
 | GET | `/api/admin/documents` | 어드민 업로드 문서 목록 |
 | POST | `/api/admin/documents` | PDF 업로드 → 텍스트 추출 후 색인 |
@@ -407,7 +506,7 @@ YAML 주석은 보존되지 않습니다.
 프론트엔드를 그대로 씁니다. `POST /chat`의 `history`는 프론트엔드(IndexedDB)가
 보관하는 최근 대화 몇 턴(`[{role, content}]`)이며, 있으면 백엔드가 후속 질문을
 독립형 질문으로 재작성한 뒤 검색합니다. `provider`는 `"local"`(기본값, Ollama),
-`"gemini"`(`"cloud"`도 허용), `"claude"`(로그인된 `claude -p` CLI) 중 하나. 응답의
+`"claude"`(로그인된 `claude -p` CLI) 중 하나이고, 그 외 값은 `"local"`로 처리합니다. 응답의
 `sources[].docType`이 `"NEWS"`면 해당 출처의 `rceptNo`가 공시 접수번호가 아니라
 뉴스 기사 URL입니다.
 
@@ -444,7 +543,6 @@ app/
 │   └── article_scraper.py        # 기사 페이지 본문/제목/언론사/발행일 크롤링
 ├── llm/
 │   ├── ollama.py                 # Ollama 채팅 + 임베딩
-│   ├── gemini.py                 # Google Gemini generateContent REST 직접 호출
 │   └── claude_cli.py             # 로그인된 `claude -p` CLI를 서브프로세스로 호출
 └── dart/
     ├── client.py                 # DART Open API 클라이언트 (공시검색/원본파일 다운로드)
@@ -468,7 +566,7 @@ data/                             # 런타임 사이드카 JSON·업로드 파�
 - DART `document.xml` 원본만 지원(`pdf.do`는 API로 안정적으로 못 받아 미지원).
 - 대화 히스토리는 브라우저 IndexedDB에 기업별로 저장(서버 미저장) — 브라우저/기기가
   바뀌면 히스토리는 안 보입니다.
-- qwen2.5:3b는 소형 모델이라 답변 품질이 완벽하지 않을 수 있어 Gemini/Claude와
+- qwen2.5:3b는 소형 모델이라 답변 품질이 완벽하지 않을 수 있어 Claude와
   비교용으로 씁니다. Claude 옵션은 매 질문마다 CLI를 새로 띄워 느리고(수 초~수십 초,
   타임아웃 `CLAUDE_TIMEOUT_SECONDS` 기본 60초), API 과금이 아니라 로그인된 claude.ai
   계정의 사용량을 그대로 씁니다. 모델은 `CLAUDE_MODEL`(기본 `sonnet`)로 바꿀 수 있습니다.

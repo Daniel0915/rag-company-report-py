@@ -50,6 +50,27 @@ def test_judge_prompt_includes_evidence_answer_and_expected():
     assert "300조입니다" in p and "거절했으면" not in p
 
 
+def test_judge_prompt_uses_evidence_texts_when_given():
+    p = build_judge_prompt(
+        _item(), _retrieved(), "300조입니다", evidence_texts=["get_financials 결과: 매출액 300조 8,709억원"]
+    )
+    assert "1. get_financials 결과: 매출액 300조 8,709억원" in p
+    assert "검색된 근거 없음" not in p
+
+
+def test_judge_passes_evidence_texts_to_prompt():
+    seen = {}
+
+    class Capture(_Fake):
+        def generate(self, system_prompt, user_prompt):
+            seen["prompt"] = user_prompt
+            return self.reply
+
+    reply = '{"faithfulness": 1.0, "correct": true, "reason": "r"}'
+    judge(Capture(reply), _item(), [], "a", evidence_texts=["재무 결과 텍스트"])
+    assert "1. 재무 결과 텍스트" in seen["prompt"]
+
+
 def test_judge_prompt_for_unanswerable_mentions_refusal():
     p = build_judge_prompt(_item(False), _retrieved(), "모릅니다")
     assert "거절" in p and "기대 답" not in p
