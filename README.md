@@ -1,6 +1,6 @@
 # 기업 리포트 챗봇(RAG)
 
-[RAG 개선 이력 · Tool Calling과 Eval](docs/2026-11-26-rag-tool-calling-eval-improvement-history.md)
+[기업 공시 챗봇 개선 이력 · 도구 호출과 평가](docs/2026-11-26-기업-공시-챗봇-도구-호출과-평가-개선-이력.md)
 
 DART 전자공시(사업/반기/분기보고서 + 지분공시)와 관련 뉴스를 근거로 관심 기업에
 답변하는 RAG 챗봇입니다. 공시는 DART API, 뉴스는 네이버 검색결과 페이지(API 키
