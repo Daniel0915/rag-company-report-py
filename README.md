@@ -313,6 +313,7 @@ docker stop company-report-neo4j && docker rm company-report-neo4j
 
 정답셋으로 검색과 답변의 품질을 재고, 설정이나 프롬프트를 바꾼 전후를 비교합니다.
 `python -m app.eval` CLI를 쓰며 FastAPI 서버는 필요 없습니다.
+[RAG 품질 개선 이력](docs/rag-quality-history.md)에서 변경 시각과 평가 결과를 확인할 수 있습니다.
 
 **필요 조건**: Neo4j와 Ollama가 켜져 있어야 하고, 문항 생성과 `--judge claude`에는
 로그인된 `claude` CLI가 필요합니다. API 키는 쓰지 않습니다.
