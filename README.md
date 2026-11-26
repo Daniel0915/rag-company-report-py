@@ -1,11 +1,14 @@
 # 기업 리포트 챗봇(RAG)
 
+[프로젝트 포트폴리오 · Tool Calling과 Eval](docs/portfolio.md)
+
 DART 전자공시(사업/반기/분기보고서 + 지분공시)와 관련 뉴스를 근거로 관심 기업에
 답변하는 RAG 챗봇입니다. 공시는 DART API, 뉴스는 네이버 검색결과 페이지(API 키
 불필요)에서 가져와 기업별 Neo4j 벡터 인덱스에 함께 저장합니다. 지분공시 제출인과
 뉴스 기사 관계는 그래프로도 저장해서, 벡터 검색(Vector Retriever)만으로 안 되는
-집계·랭킹 질문은 LLM이 즉석에서 만든 Cypher(Text2Cypher)로 답합니다. 로컬(Ollama)/
-Claude 중 답변 모델을 골라 비교할 수 있고, 답변은 마크다운으로 렌더링됩니다.
+집계·랭킹 질문은 LLM이 만든 읽기 전용 Cypher(Text2Cypher)로 조회합니다.
+채팅에서 로컬(Ollama), Claude, DeepSeek 모델과 고정 RAG·Tool Calling 경로를 선택할 수 있습니다.
+Eval CLI로 같은 정답셋을 실행해 검색 근거, 답변 정확도, 토큰 사용량을 비교합니다.
 
 ## 사용 화면
 

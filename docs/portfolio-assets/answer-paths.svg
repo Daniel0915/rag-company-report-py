@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="630" viewBox="0 0 1120 630" role="img" aria-labelledby="title desc">
+  <title id="title">공시 챗봇의 고정 RAG와 Tool Calling 경로</title>
+  <desc id="desc">같은 질문을 고정 벡터 검색 경로와 모델이 도구를 선택하는 에이전트 경로로 실행한다. Eval에서 검색 근거, 답변, 도구 기록을 비교한다.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0 0 8 4 0 8Z" fill="#697b91"/>
+    </marker>
+    <style>
+      text {font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;fill:#172741}
+      .title {font-size:37px;font-weight:750;letter-spacing:-1px}
+      .subtitle {font-size:19px;fill:#485b73}
+      .heading {font-size:25px;font-weight:750;letter-spacing:-.5px}
+      .label {font-size:20px;font-weight:700}
+      .detail {font-size:17px;fill:#485b73}
+      .fixed {fill:#2757a4}
+      .agent {fill:#096456}
+      .white {fill:#fff}
+      .light {fill:#d8e3f4}
+      .flow {fill:none;stroke:#697b91;stroke-width:2;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1120" height="630" rx="24" fill="#f2f5fa"/>
+  <rect x="36" y="28" width="56" height="5" rx="2.5" fill="#297a69"/>
+  <text class="title" x="36" y="78">한 질문, 두 답변 경로</text>
+  <text class="subtitle" x="36" y="111">질문과 기업 코드를 공유하고, 근거를 수집하는 방식을 바꿉니다.</text>
+
+  <rect x="333" y="139" width="454" height="56" rx="13" fill="#182943"/>
+  <text class="label white" x="560" y="174" text-anchor="middle">채팅 UI → FastAPI 채팅 API</text>
+  <path class="flow" d="M560 195v18H289v19"/>
+  <path class="flow" d="M560 213h271v19"/>
+
+  <rect x="36" y="239" width="506" height="237" rx="17" fill="#fff" stroke="#c8d9f0"/>
+  <rect x="54" y="257" width="470" height="42" rx="9" fill="#eaf1fc"/>
+  <text class="heading fixed" x="70" y="286">고정 RAG</text>
+  <text class="label" x="70" y="332">질문 재작성 → 기업별 벡터 검색</text>
+  <text class="detail" x="70" y="357">Neo4j에서 유사도 상위 청크를 조회</text>
+  <path d="M70 374H508" stroke="#dbe4ef"/>
+  <text class="label" x="70" y="405">그래프 근거 결합 → 답변 생성</text>
+  <text class="detail" x="70" y="430">Text2Cypher 또는 검색 결과의 관계 확장</text>
+
+  <rect x="578" y="239" width="506" height="237" rx="17" fill="#fff" stroke="#bcded5"/>
+  <rect x="596" y="257" width="470" height="42" rx="9" fill="#e8f6f0"/>
+  <text class="heading agent" x="612" y="286">Tool Calling 에이전트</text>
+  <text class="label" x="612" y="332">모델이 도구와 인자를 선택</text>
+  <text class="detail" x="612" y="357">공시 목록, 공시·뉴스 검색, 재무, 지분 그래프, 웹, 계산</text>
+  <path d="M612 374H1050" stroke="#dbe4ef"/>
+  <text class="label" x="612" y="405">실행 결과를 모델에 전달 → 답변 생성</text>
+  <text class="detail" x="612" y="430">호출 기록과 출처를 남기고, 한도에서 종료</text>
+
+  <path class="flow" d="M289 476v31"/>
+  <path class="flow" d="M831 476v31"/>
+  <rect x="36" y="514" width="1048" height="82" rx="15" fill="#182943"/>
+  <text class="heading white" x="62" y="549">Eval</text>
+  <text class="detail light" x="62" y="574">같은 정답셋으로 실행</text>
+  <path d="M251 533v43" stroke="#52647d"/>
+  <text class="label white" x="278" y="549">검색 적중 · 정답 · 근거 충실도</text>
+  <text class="detail light" x="278" y="574">도구 호출·실패와 토큰 사용량을 함께 기록</text>
+</svg>

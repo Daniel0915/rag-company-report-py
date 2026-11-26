@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="470" viewBox="0 0 1120 470" role="img" aria-labelledby="title desc">
+  <title id="title">삼성전자 32문항 평가의 정답률과 공시 섹션 적중률</title>
+  <desc id="desc">Sonnet 고정은 정답 11/24, 섹션 적중 9/24다. Sonnet 에이전트는 정답 12/24, 섹션 적중 12/22다. DeepSeek 고정은 정답 10/24, 섹션 적중 9/24다.</desc>
+  <style>
+    text {font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;fill:#172741}
+    .title {font-size:36px;font-weight:750;letter-spacing:-1px}
+    .subtitle {font-size:19px;fill:#485b73}
+    .heading {font-size:22px;font-weight:750}
+    .label {font-size:19px;font-weight:700}
+    .value {font-size:19px;font-weight:750}
+    .note {font-size:17px;fill:#485b73}
+  </style>
+  <rect width="1120" height="470" rx="24" fill="#f2f5fa"/>
+  <rect x="36" y="28" width="56" height="5" rx="2.5" fill="#297a69"/>
+  <text class="title" x="36" y="78">검색 적중이 늘어난 만큼 정답이 늘었을까?</text>
+  <text class="subtitle" x="36" y="111">삼성전자 정답셋 32문항 · 경로별 1회 · Claude Opus 채점</text>
+
+  <rect x="36" y="139" width="1048" height="234" rx="15" fill="#fff" stroke="#d6e0ec"/>
+  <text class="heading" x="284" y="177">정답</text>
+  <text class="heading" x="672" y="177">정확한 공시 섹션 적중</text>
+  <path d="M628 159v194" stroke="#dbe4ef"/>
+
+  <text class="label" x="60" y="223">Sonnet 고정</text>
+  <rect x="284" y="207" width="260" height="20" rx="6" fill="#e9eef5"/>
+  <rect x="284" y="207" width="119.17" height="20" rx="6" fill="#4873b9"/>
+  <text class="value" x="562" y="224">11/24</text>
+  <rect x="672" y="207" width="260" height="20" rx="6" fill="#e9eef5"/>
+  <rect x="672" y="207" width="97.5" height="20" rx="6" fill="#4873b9"/>
+  <text class="value" x="950" y="224">9/24</text>
+
+  <text class="label" x="60" y="279">Sonnet 에이전트</text>
+  <rect x="284" y="263" width="260" height="20" rx="6" fill="#e9eef5"/>
+  <rect x="284" y="263" width="130" height="20" rx="6" fill="#177a67"/>
+  <text class="value" x="562" y="280">12/24</text>
+  <rect x="672" y="263" width="260" height="20" rx="6" fill="#e9eef5"/>
+  <rect x="672" y="263" width="141.82" height="20" rx="6" fill="#177a67"/>
+  <text class="value" x="950" y="280">12/22</text>
+
+  <text class="label" x="60" y="335">DeepSeek 고정</text>
+  <rect x="284" y="319" width="260" height="20" rx="6" fill="#e9eef5"/>
+  <rect x="284" y="319" width="108.33" height="20" rx="6" fill="#737caf"/>
+  <text class="value" x="562" y="336">10/24</text>
+  <rect x="672" y="319" width="260" height="20" rx="6" fill="#e9eef5"/>
+  <rect x="672" y="319" width="97.5" height="20" rx="6" fill="#737caf"/>
+  <text class="value" x="950" y="336">9/24</text>
+
+  <text class="note" x="36" y="412">정답은 답이 있는 24문항 기준입니다. Sonnet 에이전트의 실행 실패 2건은 섹션 적중 집계에서 빠졌습니다.</text>
+  <text class="note" x="36" y="439">정확한 섹션 적중은 접수번호·원본 파일·섹션 순번이 모두 일치한 경우입니다.</text>
+</svg>
