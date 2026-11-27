@@ -41,8 +41,9 @@ class AgentService:
     def run(self, question: str, corp_code: str, provider: str | None) -> AgentResult:
         company = find(corp_code)
         scope = external_scope(corp_code) if self._settings.agent_external_mcp else None
+        krx_auth = scope is not None and self._settings.krx_auth_configured
         system_prompt = build_agent_system_prompt(
-            company.name if company else corp_code, corp_code, date.today(), external=scope is not None
+            company.name if company else corp_code, corp_code, date.today(), external=scope is not None, krx_auth=krx_auth
         )
         llm = _normalize_provider(provider)
         if llm == "claude":
@@ -59,7 +60,7 @@ class AgentService:
         try:
             specs = build_tools(ctx)
             if pool is not None and scope is not None:
-                specs += build_external_tools(pool, scope, secrets_of(self._settings))
+                specs += build_external_tools(pool, scope, secrets_of(self._settings), krx_auth=krx_auth)
             executor = ToolExecutor(specs, max_calls=self._settings.agent_max_tool_calls)
             loop = run_tool_loop(model, executor, system_prompt, question)
             return AgentResult(loop.answer, executor.records, loop.prompt_tokens)

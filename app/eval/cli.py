@@ -58,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--agent", action="store_true", help="고정 경로 대신 에이전트(도구 호출) 경로로 돌린다. --top-k는 쓰지 않는다")
     p_run.add_argument("--corp", help="이 기업의 문항만 돌린다")
     p_run.add_argument(
-        "--external-mcp", action="store_true", help="에이전트에 외부 MCP 도구(dart_*, krx_stock_price)를 붙인다"
+        "--external-mcp", action="store_true", help="에이전트에 외부 MCP 도구(dart_*, krx_*)를 붙인다"
     )
 
     p_cmp = sub.add_parser("compare", help="두 결과 파일의 지표와 문항별 변화를 비교한다")

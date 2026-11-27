@@ -22,7 +22,7 @@ def _tool(name):
 
 
 def _spec(caller, name):
-    return {s.name: s for s in build_external_tools(caller, SCOPE, [KEY])}[name]
+    return {s.name: s for s in build_external_tools(caller, SCOPE, [KEY], krx_auth=True)}[name]
 
 
 def test_external_tool_names_are_fixed_and_valid():
@@ -32,6 +32,8 @@ def test_external_tool_names_are_fixed_and_valid():
         "dart_executives",
         "dart_financial_index",
         "krx_stock_price",
+        "krx_market_cap",
+        "krx_market_fundamentals",
     )
     assert not set(EXTERNAL_TOOL_NAMES) & set(TOOL_NAMES)
     assert all(re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", n) for n in EXTERNAL_TOOL_NAMES)
@@ -60,6 +62,31 @@ def test_krx_arguments_are_converted_and_ticker_injected():
         {"start_date": "2026-11-20", "end_date": "2026-11-26"}, SCOPE
     )
     assert remote == {"ticker": "005930", "start_date": "20261120", "end_date": "20261126"}
+
+
+@pytest.mark.parametrize(
+    "name,remote,label",
+    [
+        ("krx_market_cap", "get_market_cap_by_date", "KRX 시가총액"),
+        ("krx_market_fundamentals", "get_market_fundamental_by_date", "KRX 투자지표"),
+    ],
+)
+def test_authenticated_krx_tools_route_and_label_results(name, remote, label):
+    args = {"start_date": "2026-11-20", "end_date": "2026-11-20"}
+
+    class Caller:
+        def call(self, server, tool, arguments):
+            assert server != "pykrx"
+            assert tool == remote
+            assert arguments == {"ticker": "005930", "start_date": "20261120", "end_date": "20261120"}
+            return '{"data":[{"date":"2026-11-20"}]}', False
+
+    assert name not in {spec.name for spec in build_external_tools(None, SCOPE, [])}
+    result = _spec(Caller(), name).run(args)
+    assert result.ok and result.sources[0]["label"].startswith(label)
+    assert result.sources[0]["tool"] == name
+    error = normalize_result(_tool(name), args, SCOPE, '{"error":"no data"}', False, [KEY])
+    assert not error.ok
 
 
 @pytest.mark.parametrize(

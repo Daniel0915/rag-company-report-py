@@ -155,7 +155,8 @@ def test_claude_command_includes_external_tools_only_when_given():
     assert "mcp__company__krx_stock_price" in extended
 
 
-def test_run_claude_agent_passes_external_flag_when_enabled():
+@pytest.mark.parametrize("krx_pw", ["", "sample-password"])
+def test_run_claude_agent_passes_external_flag_when_enabled(krx_pw):
     seen = {}
 
     def runner(command, **kwargs):
@@ -163,10 +164,12 @@ def test_run_claude_agent_passes_external_flag_when_enabled():
         seen["cmd"] = command
         return subprocess.CompletedProcess(command, 0, '{"result": "x", "is_error": false}', "")
 
-    settings = Settings(_env_file=None, agent_external_mcp=True)
+    settings = Settings(_env_file=None, agent_external_mcp=True, krx_id="sample-account", krx_pw=krx_pw)
     run_claude_agent("q", "sys", "00126380", settings, runner=runner)
     assert seen["env"]["AGENT_EXTERNAL_MCP"] == "1"
     assert "mcp__company__dart_dividend" in seen["cmd"]
+    assert ("mcp__company__krx_market_fundamentals" in seen["cmd"]) is bool(krx_pw)
+    assert not {"KRX_ID", "KRX_PW"} & seen["env"].keys()
 
 
 def test_run_claude_agent_redacts_stderr():

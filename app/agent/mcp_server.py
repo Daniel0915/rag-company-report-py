@@ -14,6 +14,7 @@ from app.agent.executor import ToolExecutor
 from app.agent.external_mcp import ToolCaller, build_external_tools, external_scope
 from app.agent.mcp_pool import open_external_pool, secrets_of
 from app.agent.tools import ToolContext, ToolSpec, build_tools
+from app.config import Settings
 
 
 def mcp_tool_list(specs: list[ToolSpec]) -> list[types.Tool]:
@@ -24,7 +25,7 @@ def mcp_tool_list(specs: list[ToolSpec]) -> list[types.Tool]:
 
 
 def make_call_tool_handler(
-    corp_code: str, max_calls: int, trace_path: str | None, settings, pool: ToolCaller | None = None
+    corp_code: str, max_calls: int, trace_path: str | None, settings: Settings, pool: ToolCaller | None = None
 ):
     """call_tool 핸들러. 컨텍스트는 첫 호출에서 만들고, 실패하면 다음 호출에서 다시 시도한다.
     pool이 있으면 외부 MCP 도구도 같은 실행기에 넣는다(이 서버가 외부 서버로 중계한다)."""
@@ -45,7 +46,7 @@ def make_call_tool_handler(
                 specs = build_tools(tool_ctx)
                 scope = external_scope(corp_code)
                 if pool is not None and scope is not None:
-                    specs += build_external_tools(pool, scope, secrets_of(settings))
+                    specs += build_external_tools(pool, scope, secrets_of(settings), krx_auth=settings.krx_auth_configured)
                 executor = ToolExecutor(specs, max_calls, trace_path)
             result = await asyncio.to_thread(executor.execute, params.name, params.arguments or {})
         return types.CallToolResult(
@@ -56,13 +57,13 @@ def make_call_tool_handler(
 
 
 def build_server(
-    corp_code: str, max_calls: int, trace_path: str | None, settings, pool: ToolCaller | None = None
+    corp_code: str, max_calls: int, trace_path: str | None, settings: Settings, pool: ToolCaller | None = None
 ) -> Server:
     # 목록용 스펙은 연결 없는 컨텍스트로 만든다. 의존성은 도구가 실행될 때만 만져진다.
     listing_specs = build_tools(ToolContext(corp_code, None, None, None, None, None))  # type: ignore[arg-type]
     scope = external_scope(corp_code)
     if pool is not None and scope is not None:
-        listing_specs += build_external_tools(None, scope, [])
+        listing_specs += build_external_tools(None, scope, [], krx_auth=settings.krx_auth_configured)
 
     async def on_list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
         return types.ListToolsResult(tools=mcp_tool_list(listing_specs))

@@ -131,9 +131,10 @@ flowchart TB
         t6["calculate<br/>→ 로컬 계산"]
     end
 
-    subgraph X["외부 MCP 도구 5개 (external_mcp.py, AGENT_EXTERNAL_MCP=true일 때)"]
+    subgraph X["외부 MCP 도구 (external_mcp.py, AGENT_EXTERNAL_MCP=true일 때)"]
         x1["dart_largest_shareholder · dart_dividend<br/>dart_executives · dart_financial_index"]
         x2["krx_stock_price"]
+        x3["KRX 로그인 도구<br/>krx_market_cap · krx_market_fundamentals"]
     end
     exec --> X
     exec2 --> X

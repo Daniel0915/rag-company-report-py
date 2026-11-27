@@ -125,6 +125,21 @@ def test_child_env_gives_dart_key_only_to_opendart():
     assert "OPENDART_API_KEY" not in child_env(Settings(_env_file=None, dart_api_key="K"), "pykrx")
 
 
+def test_krx_credentials_from_dotenv_go_only_to_the_authenticated_server(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("KRX_ID=sample-account\nKRX_PW='sample-password'\n")
+    settings = Settings(_env_file=env_file)
+    assert settings.krx_auth_configured
+    assert "sample-account" not in repr(settings) and "sample-password" not in repr(settings)
+    for server in ("opendart", "pykrx"):
+        assert not {"KRX_ID", "KRX_PW"} & child_env(settings, server).keys()
+    env = child_env(settings, "pykrx_authenticated")
+    assert env["KRX_ID"] == "sample-account" and env["KRX_PW"] == "sample-password"
+    assert "OPENDART_API_KEY" not in env
+    assert {"sample-account", "sample-password"} <= set(secrets_of(settings))
+    assert not Settings(_env_file=None, krx_id="", krx_pw="sample-password").krx_auth_configured
+
+
 def test_secrets_of_skips_empty():
     s = Settings(_env_file=None, dart_api_key="D", deepseek_api_key="", tavily_api_key="T")
     assert secrets_of(s) == ["D", "T"]
@@ -140,6 +155,7 @@ def test_open_external_pool_uses_settings(monkeypatch):
     mcp_pool.open_external_pool(s)
     commands, envs, timeout, secrets = captured["args"]
     assert commands["opendart"] == ["uvx", "--with", "mcp<2", "opendart-mcp@0.1.0"]
-    assert commands["pykrx"] == ["uvx", "--with", "mcp<2", "pykrx-mcp@0.1.3"]
+    assert commands["pykrx"][:7] == ["uvx", "--with", "mcp<2", "--from", "pykrx-mcp@0.1.3", "python", "-c"]
+    assert commands["pykrx"] == commands["pykrx_authenticated"]
     assert envs["opendart"]["OPENDART_API_KEY"] == "D" and "OPENDART_API_KEY" not in envs["pykrx"]
     assert timeout == 30 and secrets == ["D"]

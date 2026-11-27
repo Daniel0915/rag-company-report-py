@@ -7,7 +7,9 @@ from unittest.mock import MagicMock
 from app.agent import service as service_module
 from app.agent.claude_agent import ClaudeAgentResult
 from app.agent.loop import LoopResult
-from app.agent.external_mcp import EXTERNAL_TOOL_NAMES
+import pytest
+
+from app.agent.external_mcp import available_external_tools
 from app.agent.prompts import AGENT_SYSTEM_PROMPT, build_agent_system_prompt
 from app.agent.tools import TOOL_NAMES, ToolResult, ToolSpec
 from app.agent.service import AgentResult, AgentService
@@ -29,12 +31,12 @@ def _rec(seq, name, sources, text="결과" * 200):
     return ToolCallRecord(seq, name, {"q": "x"}, True, text, sources)
 
 
-def _settings(external=False):
-    return SimpleNamespace(agent_max_tool_calls=6, agent_external_mcp=external)
+def _settings(external=False, krx_auth=False):
+    return SimpleNamespace(agent_max_tool_calls=6, agent_external_mcp=external, krx_auth_configured=krx_auth)
 
 
-def _service(external=False):
-    return AgentService(_settings(external), MagicMock(), MagicMock())
+def _service(external=False, krx_auth=False):
+    return AgentService(_settings(external, krx_auth), MagicMock(), MagicMock())
 
 
 def _stub_run(svc, records, answer="답"):
@@ -196,17 +198,19 @@ def test_external_tools_absent_when_disabled(monkeypatch):
     opened.assert_not_called()
 
 
-def test_external_tools_added_and_pool_closed_when_enabled(monkeypatch):
+@pytest.mark.parametrize("krx_auth", [False, True])
+def test_external_tools_added_and_pool_closed_when_enabled(monkeypatch, krx_auth):
     seen = _wire_loop(monkeypatch, loop=MagicMock(side_effect=RuntimeError("x")))
     pool = MagicMock()
     monkeypatch.setattr(service_module, "open_external_pool", lambda s: pool)
     monkeypatch.setattr(service_module, "secrets_of", lambda s: [])
     try:
-        _service(external=True).run("q", CORP, None)
+        _service(external=True, krx_auth=krx_auth).run("q", CORP, None)
     except RuntimeError:
         pass
-    assert seen["names"] == list(TOOL_NAMES) + list(EXTERNAL_TOOL_NAMES)
+    assert seen["names"] == list(TOOL_NAMES) + [tool.name for tool in available_external_tools(krx_auth)]
     assert "krx_stock_price" in seen["prompt"]
+    assert ("krx_market_cap" in seen["prompt"]) is krx_auth
     pool.close.assert_called_once()
 
 

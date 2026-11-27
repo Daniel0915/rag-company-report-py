@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from app.agent.context import REPO_ROOT
-from app.agent.external_mcp import EXTERNAL_TOOL_NAMES, external_scope, redact_secrets
+from app.agent.external_mcp import available_external_tools, external_scope, redact_secrets
 from app.agent.mcp_pool import secrets_of
 from app.agent.tools import TOOL_NAMES
 from app.agent.trace import ToolCallRecord, read_records
@@ -90,9 +90,9 @@ def run_claude_agent(
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(config, f)
 
-        tool_names = TOOL_NAMES + EXTERNAL_TOOL_NAMES if external else TOOL_NAMES
+        external_names = tuple(t.name for t in available_external_tools(settings.krx_auth_configured)) if external else ()
         command = build_claude_command(
-            question, system_prompt, settings.claude_model, config_path, tool_names
+            question, system_prompt, settings.claude_model, config_path, TOOL_NAMES + external_names
         )
         try:
             completed = runner(

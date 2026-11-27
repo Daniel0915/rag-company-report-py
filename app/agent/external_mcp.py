@@ -21,6 +21,21 @@ MAX_RANGE_DAYS = 30  # 시작일 포함 31일
 # 모델에게 필요 없는 반복 필드. 상태 필드는 오류 판정 뒤에 지운다.
 DROP_FIELDS = frozenset({"corp_code", "corp_cls", "corp_name", "stock_code", "status", "message"})
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_PYKRX_PACKAGE = "pykrx-mcp@0.1.3"
+_AUTH_KRX_SERVER = "pykrx_authenticated"
+# pykrx prints login messages on import and refresh. Keep stdout for JSON-RPC.
+_PYKRX_STDIO = """\
+import sys
+from contextlib import redirect_stdout
+from functools import partial
+
+with redirect_stdout(sys.stderr):
+    from pykrx_mcp.server import main
+    from pykrx.website.comm import auth
+
+auth.print = partial(print, file=sys.stderr)
+main()
+"""
 
 
 class ExternalMcpError(RuntimeError):
@@ -47,6 +62,8 @@ class ExternalServer:
 
     def command(self) -> list[str]:
         # 두 서버는 MCP SDK 1.x(FastMCP)로 짜여 있어 이 저장소(2.x)와 분리된 환경에서 띄운다.
+        if self.package == _PYKRX_PACKAGE:
+            return ["uvx", "--with", "mcp<2", "--from", self.package, "python", "-c", _PYKRX_STDIO]
         return ["uvx", "--with", "mcp<2", self.package]
 
 
@@ -63,7 +80,10 @@ class ExternalTool:
 
 EXTERNAL_SERVERS: dict[str, ExternalServer] = {
     "opendart": ExternalServer("opendart", "opendart-mcp@0.1.0", {"OPENDART_API_KEY": "dart_api_key"}),
-    "pykrx": ExternalServer("pykrx", "pykrx-mcp@0.1.3", {}),
+    "pykrx": ExternalServer("pykrx", _PYKRX_PACKAGE, {}),
+    _AUTH_KRX_SERVER: ExternalServer(
+        _AUTH_KRX_SERVER, _PYKRX_PACKAGE, {"KRX_ID": "krx_id", "KRX_PW": "krx_pw"}
+    ),
 }
 
 _DART_LABELS = {
@@ -156,15 +176,35 @@ def _dart_sources(name: str) -> Callable[[object, dict, ToolScope], list[dict]]:
     return sources
 
 
-def _krx_sources(data: object, args: dict, scope: ToolScope) -> list[dict]:
-    return [
+def _krx_sources(name: str, label: str) -> Callable[[object, dict, ToolScope], list[dict]]:
+    def sources(data: object, args: dict, scope: ToolScope) -> list[dict]:
+        return [
+            {
+                "kind": "external",
+                "server": "pykrx",
+                "tool": name,
+                "label": f"{label} {args['start_date']}~{args['end_date']}",
+            }
+        ]
+
+    return sources
+
+
+def _krx_tool(name: str, server: str, remote_name: str, description: str, label: str) -> ExternalTool:
+    return ExternalTool(
+        name, server, remote_name, description,
         {
-            "kind": "external",
-            "server": "pykrx",
-            "tool": "krx_stock_price",
-            "label": f"KRX 시세 (pykrx) {args['start_date']}~{args['end_date']}",
-        }
-    ]
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "description": "시작일 YYYY-MM-DD"},
+                "end_date": {"type": "string", "description": "종료일 YYYY-MM-DD"},
+            },
+            "required": ["start_date", "end_date"],
+            "additionalProperties": False,
+        },
+        _krx_remote,
+        _krx_sources(name, label),
+    )
 
 
 def _dart_tool(name: str, remote_name: str, description: str) -> ExternalTool:
@@ -202,25 +242,29 @@ EXTERNAL_TOOLS: tuple[ExternalTool, ...] = (
         _index_remote,
         _dart_sources("dart_financial_index"),
     ),
-    ExternalTool(
+    _krx_tool(
         "krx_stock_price",
         "pykrx",
         "get_stock_ohlcv",
         "기간별 일별 주가(시가·고가·저가·종가)와 거래량을 조회한다. 수정주가 기준이며 기간은 최대 31일이다.",
-        {
-            "type": "object",
-            "properties": {
-                "start_date": {"type": "string", "description": "시작일 YYYY-MM-DD"},
-                "end_date": {"type": "string", "description": "종료일 YYYY-MM-DD"},
-            },
-            "required": ["start_date", "end_date"],
-            "additionalProperties": False,
-        },
-        _krx_remote,
-        _krx_sources,
+        "KRX 시세 (pykrx)",
+    ),
+    _krx_tool(
+        "krx_market_cap", _AUTH_KRX_SERVER, "get_market_cap_by_date",
+        "KRX 기준 일별 시가총액(원)과 상장주식수를 조회한다. 기간은 최대 31일이다.",
+        "KRX 시가총액 (pykrx)",
+    ),
+    _krx_tool(
+        "krx_market_fundamentals", _AUTH_KRX_SERVER, "get_market_fundamental_by_date",
+        "KRX 기준 일별 PER·PBR·EPS·BPS·배당수익률을 조회한다. 기간은 최대 31일이다.",
+        "KRX 투자지표 (pykrx)",
     ),
 )
 EXTERNAL_TOOL_NAMES: tuple[str, ...] = tuple(t.name for t in EXTERNAL_TOOLS)
+
+
+def available_external_tools(krx_auth: bool) -> tuple[ExternalTool, ...]:
+    return EXTERNAL_TOOLS if krx_auth else tuple(t for t in EXTERNAL_TOOLS if t.server != _AUTH_KRX_SERVER)
 
 
 def external_scope(corp_code: str) -> ToolScope | None:
@@ -274,7 +318,7 @@ def _error_of(server: str, data: object) -> str | None:
         return None
     if server == "opendart" and "status" in data and data["status"] != "000":
         return f"DART {data['status']} {data.get('message', '')}".strip()
-    if server == "pykrx" and "error" in data:
+    if server in ("pykrx", _AUTH_KRX_SERVER) and "error" in data:
         return str(data["error"])
     return None
 
@@ -321,10 +365,10 @@ def _make_run(
 
 
 def build_external_tools(
-    caller: ToolCaller | None, scope: ToolScope, secrets: Sequence[str]
+    caller: ToolCaller | None, scope: ToolScope, secrets: Sequence[str], *, krx_auth: bool = False
 ) -> list[ToolSpec]:
     """caller가 None이면 목록용이다(실행하면 '외부 도구 사용 불가')."""
     return [
         ToolSpec(t.name, t.description, t.input_schema, _make_run(t, caller, scope, secrets))
-        for t in EXTERNAL_TOOLS
+        for t in available_external_tools(krx_auth)
     ]

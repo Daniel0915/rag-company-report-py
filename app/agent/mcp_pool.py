@@ -36,7 +36,7 @@ def child_env(settings: Settings, server: str) -> dict[str, str]:
 
 
 def secrets_of(settings: Settings) -> list[str]:
-    values = (settings.dart_api_key, settings.deepseek_api_key, settings.tavily_api_key)
+    values = (settings.dart_api_key, settings.deepseek_api_key, settings.tavily_api_key, settings.krx_id, settings.krx_pw)
     return [v for v in values if v]
 
 

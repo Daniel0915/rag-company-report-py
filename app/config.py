@@ -1,6 +1,7 @@
 """application.yml 대응 설정. 환경변수(.env)로 덮어쓴다."""
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,6 +48,8 @@ class Settings(BaseSettings):
     # 외부 MCP 서버(opendart-mcp, pykrx-mcp) 도구. 2026-11-27 켜기 판단 평가를 통과해 기본으로 켠다.
     agent_external_mcp: bool = True
     agent_external_mcp_timeout_seconds: int = 30
+    krx_id: str = Field(default="", repr=False)
+    krx_pw: str = Field(default="", repr=False)
 
     # 사이드카 파일 / 업로드 경로
     company_report_index_file: str = "data/company-report-index.json"
@@ -61,6 +64,10 @@ class Settings(BaseSettings):
     ingest_log_dir: str = "logs/ingest"
 
     max_upload_bytes: int = 30 * 1024 * 1024
+
+    @property
+    def krx_auth_configured(self) -> bool:
+        return bool(self.krx_id and self.krx_pw)
 
 
 @lru_cache
