@@ -1,6 +1,6 @@
 # 프로젝트 구조
 
-이 문서는 기업 공시 챗봇이 어떤 부품으로 이루어져 있고, 부품끼리 무엇을 주고받는지 그림으로 보여 줍니다. 화살표는 호출 방향입니다. 점선은 매 요청이 아니라 배치나 수동 실행으로 일어나는 흐름입니다. 2026-11-27 `main` 기준입니다.
+이 문서는 기업 공시 챗봇이 어떤 부품으로 이루어져 있고, 부품끼리 무엇을 주고받는지 그림으로 보여 줍니다. 화살표는 호출 방향입니다. 점선은 매 요청이 아니라 배치나 수동 실행으로 일어나는 흐름입니다. 2026-11-27 기준입니다.
 
 ## 전체 그림
 
@@ -23,13 +23,15 @@ flowchart LR
         ollama["Ollama<br/>qwen2.5:3b 답변<br/>bge-m3 임베딩"]
         cli["claude CLI<br/>(구독 로그인)"]
         mcp["MCP 서버 (stdio)<br/>app/agent/mcp_server.py"]
+        extmcp["외부 MCP 서버 (uvx, 기본 꺼짐)<br/>opendart-mcp · pykrx-mcp"]
     end
 
     subgraph external["외부 서비스 (인터넷)"]
         dart["OpenDART API"]
         naver["네이버 뉴스<br/>(검색·기사 페이지 스크래핑)"]
         tavily["Tavily 웹 검색 API"]
-        openrouter["OpenRouter API<br/>DeepSeek V4.1 Flash"]
+        openrouter["DeepSeek API<br/>deepseek-flash (V4.1 Flash)"]
+        krx["KRX · 네이버 금융<br/>(pykrx)"]
         anthropic["Claude (Anthropic)<br/>구독 계정"]
     end
 
@@ -55,6 +57,9 @@ flowchart LR
     tools --> ollama
     tools --> dart
     tools --> tavily
+    tools -->|"MCP stdio<br/>(외부 도구 5개)"| extmcp
+    extmcp --> dart
+    extmcp --> krx
 
     ingest -.-> dart
     ingest -.-> naver
@@ -78,7 +83,7 @@ sequenceDiagram
     participant S as CompanyChatService
     participant O as Ollama (bge-m3)
     participant N as Neo4j
-    participant L as 답변 모델<br/>(Ollama · OpenRouter · claude CLI)
+    participant L as 답변 모델<br/>(Ollama · DeepSeek API · claude CLI)
 
     B->>R: question, corpCode, provider, agent=false
     R->>S: chat()
@@ -106,7 +111,7 @@ flowchart TB
     q["질문 + corpCode"] --> svc["AgentService"]
 
     svc -->|"local · deepseek"| loop["우리 서버 안의 루프<br/>app/agent/loop.py"]
-    loop <-->|"Function Calling<br/>tools 정의 ↔ tool_calls"| model1["Ollama (qwen2.5:3b)<br/>또는 OpenRouter (DeepSeek)"]
+    loop <-->|"Function Calling<br/>tools 정의 ↔ tool_calls"| model1["Ollama (qwen2.5:3b)<br/>또는 DeepSeek API"]
     loop -->|"tool_calls 실행"| exec["ToolExecutor<br/>호출 한도 · 기록"]
 
     svc -->|"claude"| cliproc["claude -p<br/>--strict-mcp-config<br/>--allowedTools mcp__...6개"]
@@ -125,12 +130,22 @@ flowchart TB
         t5["web_search<br/>→ Tavily API"]
         t6["calculate<br/>→ 로컬 계산"]
     end
+
+    subgraph X["외부 MCP 도구 5개 (external_mcp.py, AGENT_EXTERNAL_MCP=true일 때)"]
+        x1["dart_largest_shareholder · dart_dividend<br/>dart_executives · dart_financial_index"]
+        x2["krx_stock_price"]
+    end
+    exec --> X
+    exec2 --> X
+    X -->|"MCP stdio · 요청마다 띄움<br/>mcp_pool.py"| ext["uvx opendart-mcp 0.1.0<br/>uvx pykrx-mcp 0.1.3"]
+    ext --> extapi["OpenDART API · KRX/네이버 금융"]
 ```
 
 Function Calling과 MCP의 차이는 연결하는 구간입니다.
 
 - **Function Calling은 모델과 앱을 잇습니다.** 모델이 "이 도구를 이 인자로 불러 달라"고 답하고, 앱이 실행합니다. `local`과 `deepseek`는 우리 서버가 앱 역할을 하므로 도구 함수를 직접 부릅니다.
 - **MCP는 앱과 도구 서버를 잇습니다.** `claude` 경로에서는 앱 역할을 `claude` CLI가 맡습니다. CLI는 우리 파이썬 함수를 직접 부를 수 없습니다. 그래서 같은 도구를 MCP 서버로 감싸 CLI에 붙입니다. CLI와 Claude 모델 사이는 여전히 Function Calling입니다.
+- **외부 MCP 도구에서는 우리 앱이 MCP 클라이언트입니다.** `AGENT_EXTERNAL_MCP=true`이면 `mcp_pool.py`가 `opendart-mcp`와 `pykrx-mcp`를 띄우고 `tools/call`을 보냅니다. `local`과 `deepseek`에서는 우리 서버가 직접 부르고, `claude`에서는 우리 MCP 서버가 서버이면서 클라이언트가 되어 외부 서버로 중계합니다.
 
 ## 데이터가 들어오는 길
 
@@ -177,7 +192,7 @@ graph LR
 
 ```mermaid
 flowchart LR
-    ds["eval/dataset.yaml<br/>52문항"] --> run["app.eval.runner"]
+    ds["eval/dataset.yaml<br/>64문항"] --> run["app.eval.runner"]
     run -->|"agent 없음"| chat["CompanyChatService<br/>retrieve → answer"]
     run -->|"--agent"| ag["AgentService"]
     chat --> rule["규칙 채점 (metrics.py)<br/>검색 적중 · 사실 포함<br/>거절 · 근거 없는 숫자"]
@@ -193,8 +208,8 @@ flowchart LR
 | --- | --- |
 | `app/routers` | REST API 입구. 채팅, 색인, 뉴스, 그래프, 관리자 문서 |
 | `app/services` | 고정 RAG 답변, 색인, 그래프 조회, 뉴스·PDF 수집 |
-| `app/agent` | 에이전트 루프, 도구 6개, 실행기, MCP 서버, Claude CLI 연결 |
-| `app/llm` | 모델 클라이언트. Ollama, `claude` CLI, OpenAI 호환(OpenRouter), 사용량 기록 |
+| `app/agent` | 에이전트 루프, 도구 6개, 외부 MCP 도구 어댑터와 세션 풀, 실행기, MCP 서버, Claude CLI 연결 |
+| `app/llm` | 모델 클라이언트. Ollama, `claude` CLI, OpenAI 호환(DeepSeek API), 사용량 기록 |
 | `app/vector` | Neo4j 벡터 저장소, 회사별 인덱스 관리, 청크 분할 |
 | `app/dart` | OpenDART API 클라이언트와 공시 XML 파서 |
 | `app/naver` | 네이버 뉴스 검색·기사 스크래퍼 (API 키 없음) |
@@ -207,7 +222,7 @@ flowchart LR
 | 대상 | 인증 | 설정 |
 | --- | --- | --- |
 | OpenDART | API 키 | `.env`의 `DART_API_KEY` |
-| OpenRouter (DeepSeek) | API 키, 선불 크레딧 | `.env`의 `OPENROUTER_API_KEY` |
+| DeepSeek | API 키, 선불 크레딧 | `.env`의 `DEEPSEEK_API_KEY` |
 | Tavily | API 키 | `.env`의 `TAVILY_API_KEY` |
 | Claude | 로그인된 `claude` CLI (구독). API 키를 쓰지 않습니다 | 없음 |
 | 네이버 뉴스 | 없음 (페이지 스크래핑) | 없음 |

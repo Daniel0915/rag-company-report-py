@@ -364,7 +364,9 @@ python -m app.eval compare eval/runs/A.json eval/runs/B.json
 **기대 도구(`expected_tools`)**는 에이전트 평가용 선택 필드입니다. 문항을 풀 때 쓰면 맞는
 도구 이름을 목록으로 적으며, 이 중 하나라도 쓰면 `tool_selection`이 1이 됩니다. 비워 두면 그
 문항은 `tool_selection`, `unnecessary_web` 집계에서 빠지고, 고정 경로 평가에서는 쓰지 않습니다.
-도구 이름은 아래 에이전트 모드의 6개 중에서 골라야 하며, 다른 이름이면 정답셋을 읽을 때 거부됩니다.
+도구 이름은 아래 에이전트 모드의 도구 6개와 외부 MCP 도구 5개 중에서 골라야 하며, 다른 이름이면
+정답셋을 읽을 때 거부됩니다. 근거가 공시 원문에 없는 문항(주가, DART가 계산한 재무지표 등)은
+`expected_tools`를 적으면 `expected_sections`를 비울 수 있고, 이런 문항은 검색 지표(`hit_*`, `mrr`)에서 빠집니다.
 
 ```yaml
 - id: m0002
@@ -434,6 +436,33 @@ YAML 주석은 보존되지 않습니다.
 워치리스트 밖 `corp_code`, 빈 결과, 외부 API 오류는 예외 대신 실패 결과(`ok=false`)나
 "결과 없음"으로 모델에 돌려줍니다.
 
+### 외부 MCP 도구 5개 (기본 꺼짐)
+
+`.env`에 `AGENT_EXTERNAL_MCP=true`를 넣으면 남이 만든 MCP 서버 두 개의 도구 일부를 위 6개와
+함께 씁니다. 우리 앱이 MCP 클라이언트가 되어 요청마다 서버를 띄우고(`app/agent/mcp_pool.py`),
+고른 도구만 같은 도구 목록에 붙입니다(`app/agent/external_mcp.py`). 평가로 효과를 확인하기
+전까지 기본값은 꺼짐입니다.
+
+| 도구 | 외부 서버 · 원격 도구 | 하는 일 |
+|---|---|---|
+| `dart_largest_shareholder` | `opendart-mcp` · `get_largest_shareholder` | 최대주주와 특수관계인 지분. `year`, `report` |
+| `dart_dividend` | `opendart-mcp` · `get_dividend_info` | 주당 배당금, 배당성향, 배당수익률 |
+| `dart_executives` | `opendart-mcp` · `get_executive_status` | 임원 현황 |
+| `dart_financial_index` | `opendart-mcp` · `get_single_financial_index` | 수익성·안정성·성장성·활동성 지표(ROE, 부채비율 등). `category` |
+| `krx_stock_price` | `pykrx-mcp` · `get_stock_ohlcv` | 일별 시가·고가·저가·종가·거래량(수정주가). 기간은 최대 31일 |
+
+- **실행 방식:** 두 서버는 MCP SDK 1.x로 짜여 있어 이 저장소(2.x)와 섞지 않고
+  `uvx --with "mcp<2" opendart-mcp@0.1.0`, `uvx --with "mcp<2" pykrx-mcp@0.1.3`으로 따로 띄웁니다.
+  `uv`가 설치되어 있어야 하고, 처음 한 번은 패키지를 내려받습니다.
+- **회사 범위:** `corp_code`와 종목코드는 모델에게 보이지 않고 현재 대화 중인 회사로 넣습니다.
+- **키:** `opendart-mcp`에는 `DART_API_KEY`만 넘깁니다. 결과, 오류 문구, 서버 stderr 로그에서 키를 `***`로 가립니다.
+- **실패:** 서버가 안 뜨거나 `AGENT_EXTERNAL_MCP_TIMEOUT_SECONDS`(기본 30초) 안에 답하지 않으면
+  그 호출만 실패 결과가 되고, 모델은 다른 도구로 계속 답합니다.
+- **출처:** `sources`에 `docType`이 `"DART_API"`(접수번호 포함) 또는 `"KRX"`인 항목으로 들어갑니다.
+- **제약:** pykrx의 시가총액, PER·PBR, 투자자별 거래대금은 KRX 응답 문제로 2026-11-27 기준 동작하지 않아 넣지 않았습니다.
+- **확인:** `RUN_EXTERNAL_MCP=1 pytest tests/test_external_mcp_live.py`가 실제 서버의 도구 목록과
+  스키마가 등록 표와 맞는지, 도구 5개가 삼성전자 값을 돌려주는지 확인합니다.
+
 ### 요청 예시
 
 ```bash
@@ -497,6 +526,7 @@ python -m app.eval compare eval/runs/A.json eval/runs/B.json
 ```
 
 `--agent`는 고정 경로 대신 에이전트 경로로 정답셋을 돌립니다(`--top-k`는 쓰지 않음).
+`--external-mcp`를 더하면 외부 MCP 도구 5개를 붙여 돌리고, 결과 파일 이름 끝에 `_ext`가 붙습니다.
 `--corp`, `--judge`, `--temperature`, `--seed`, `--provider`는 그대로 쓸 수 있고, 결과
 파일 이름 끝에 `_agent`가 붙으며 문항마다 `tool_calls`(seq, name, arguments, ok)가 기록됩니다.
 검색 지표(`hit_*`, `mrr`)는 `search_disclosures`가 돌려준 청크로 셉니다. 검색을 여러 번 하면
