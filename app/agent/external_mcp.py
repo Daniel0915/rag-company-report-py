@@ -13,6 +13,7 @@ from typing import Callable, Iterable, Protocol, Sequence
 
 from app.agent.tools import REPORT_CODES, ToolResult, ToolSpec
 from app.ingest.notify import redact
+from app.watchlist import find
 
 UNAVAILABLE = "외부 도구 사용 불가"
 ERROR_TEXT_CHARS = 500
@@ -220,6 +221,12 @@ EXTERNAL_TOOLS: tuple[ExternalTool, ...] = (
     ),
 )
 EXTERNAL_TOOL_NAMES: tuple[str, ...] = tuple(t.name for t in EXTERNAL_TOOLS)
+
+
+def external_scope(corp_code: str) -> ToolScope | None:
+    """워치리스트에 있는 기업만 외부 도구를 쓴다(주가 조회에 stock_code가 필요하다)."""
+    company = find(corp_code)
+    return ToolScope(company.corp_code, company.name, company.stock_code) if company else None
 
 
 def redact_secrets(text: str, secrets: Iterable[str]) -> str:
