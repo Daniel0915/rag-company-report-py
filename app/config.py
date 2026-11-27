@@ -30,12 +30,12 @@ class Settings(BaseSettings):
     claude_model: str = "sonnet"
     claude_timeout_seconds: int = 60
 
-    # DeepSeek (OpenRouter의 OpenAI 호환 API, 선불 크레딧)
-    openrouter_api_key: str = ""
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    deepseek_model: str = "deepseek/deepseek-v4.1-flash"
+    # DeepSeek 공식 API(OpenAI 호환, 선불 크레딧). base_url·모델을 바꾸면 OpenRouter 같은 호환 API도 쓸 수 있다
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-flash"
     deepseek_timeout_seconds: int = 120
-    # 출력 상한(추론 포함). 안 주면 OpenRouter가 모델 최대치(13만 토큰)만큼 잔액을 미리 요구한다
+    # 출력 상한(추론 포함). OpenRouter는 이 값이 없으면 모델 최대치만큼 잔액을 미리 요구한다
     deepseek_max_tokens: int = 8192
 
     # 에이전트(도구 호출)

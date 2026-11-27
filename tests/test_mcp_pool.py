@@ -101,7 +101,7 @@ def test_child_env_has_only_allowed_keys(monkeypatch):
 
 
 def test_secrets_of_skips_empty():
-    s = Settings(_env_file=None, dart_api_key="D", openrouter_api_key="", tavily_api_key="T")
+    s = Settings(_env_file=None, dart_api_key="D", deepseek_api_key="", tavily_api_key="T")
     assert secrets_of(s) == ["D", "T"]
 
 

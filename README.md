@@ -458,13 +458,15 @@ curl -X POST http://localhost:8080/api/company-report/chat \
 
 | | 로컬(`provider: local`) | DeepSeek(`provider: deepseek`) | Claude(`provider: claude`) |
 |---|---|---|---|
-| 호출 방식 | Ollama | OpenRouter의 OpenAI 호환 API(`openai` 라이브러리) | 로그인된 `claude` CLI(구독) |
+| 호출 방식 | Ollama | DeepSeek 공식 API(OpenAI 호환, `openai` 라이브러리) | 로그인된 `claude` CLI(구독) |
 | 도구 호출 | Ollama Function Calling을 서버 안의 루프가 돌림 | 같은 루프를 OpenAI 방식 function calling으로 돌림 | CLI에 MCP stdio 서버(`app/agent/mcp_server.py`)를 붙여 CLI가 호출 |
-| 설정 | 컨텍스트 `AGENT_OLLAMA_NUM_CTX`(기본 16384) | `OPENROUTER_API_KEY`, 모델 `DEEPSEEK_MODEL`(기본 `deepseek/deepseek-v4.1-flash`) | 타임아웃 `AGENT_CLAUDE_TIMEOUT_SECONDS`(기본 180초) |
+| 설정 | 컨텍스트 `AGENT_OLLAMA_NUM_CTX`(기본 16384) | `DEEPSEEK_API_KEY`, 모델 `DEEPSEEK_MODEL`(기본 `deepseek-flash`), 주소 `DEEPSEEK_BASE_URL`(기본 `https://api.deepseek.com`) | 타임아웃 `AGENT_CLAUDE_TIMEOUT_SECONDS`(기본 180초) |
 | 기록 | 실행기가 메모리에 기록 | 실행기가 메모리에 기록 | MCP 서버가 임시 파일에 JSON Lines로 남기고 끝난 뒤 읽음 |
 
-DeepSeek는 선불 크레딧을 쓰는 API입니다. `.env`의 `OPENROUTER_API_KEY=` 뒤에 키를
-넣으세요. 키가 비어 있으면 앱은 뜨고, `deepseek`를 고른 요청만 실패합니다. 고정 경로
+DeepSeek는 선불 크레딧을 쓰는 API입니다. `.env`의 `DEEPSEEK_API_KEY=` 뒤에 키를
+넣으세요. DeepSeek 공식 API는 응답에 비용을 주지 않으므로 평가 결과의 `cost_usd`는 0입니다.
+실제 사용액은 DeepSeek 콘솔의 잔액으로 확인합니다. OpenRouter 같은 다른 OpenAI 호환 API를
+쓰려면 `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `DEEPSEEK_API_KEY`를 그 서비스 값으로 바꿉니다. 키가 비어 있으면 앱은 뜨고, `deepseek`를 고른 요청만 실패합니다. 고정 경로
 (`agent` 없이)에서도 `provider: deepseek`로 답변할 수 있습니다.
 
 Claude 경로는 `--strict-mcp-config`로 우리 MCP 도구 6개만 허용하고 CLI 내장 도구(웹검색

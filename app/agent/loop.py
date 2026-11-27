@@ -131,7 +131,7 @@ class OllamaStepModel:
 
 
 class OpenAIStepModel:
-    """OpenAI 호환 chat.completions(지금은 OpenRouter의 DeepSeek) 응답을 ModelStep으로 바꾸는 어댑터."""
+    """OpenAI 호환 chat.completions(지금은 DeepSeek 공식 API) 응답을 ModelStep으로 바꾸는 어댑터."""
 
     def __init__(self, client: OpenAICompatClient) -> None:
         self._client = client

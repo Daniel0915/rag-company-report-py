@@ -123,7 +123,7 @@ class CompanyChatService:
         history: list[ChatTurnDto],
         provider: str | None,
     ) -> ChatResponse:
-        """provider: "local"(Ollama, 기본값), "claude"(claude CLI), "deepseek"(OpenRouter API)."""
+        """provider: "local"(Ollama, 기본값), "claude"(claude CLI), "deepseek"(DeepSeek API)."""
         if not corp_code or not corp_code.strip():
             raise ValueError("corpCode는 필수입니다")
         llm = _normalize_provider(provider)
