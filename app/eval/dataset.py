@@ -101,8 +101,11 @@ def _validate(items: list[Item]) -> None:
         seen.add(item.id)
         if item.origin not in ORIGINS:
             raise DatasetError(f"{item.id}: origin은 {'|'.join(ORIGINS)} 중 하나여야 합니다 ({item.origin!r})")
-        if item.answerable and not (item.must_include and item.expected_sections):
-            raise DatasetError(f"{item.id}: answerable 문항은 must_include와 expected_sections가 필요합니다")
+        # 근거가 공시 원문에 없는 문항(주가, DART 계산 지표 등)은 expected_tools로 답을 찾으므로 섹션을 비울 수 있다.
+        if item.answerable and not (item.must_include and (item.expected_sections or item.expected_tools)):
+            raise DatasetError(
+                f"{item.id}: answerable 문항은 must_include와 expected_sections(또는 expected_tools)가 필요합니다"
+            )
         review = getattr(item, "review", "pending")
         if review not in REVIEWS:
             raise DatasetError(f"{item.id}: review는 {'|'.join(REVIEWS)} 중 하나여야 합니다 ({review!r})")

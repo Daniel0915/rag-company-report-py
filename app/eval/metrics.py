@@ -137,10 +137,18 @@ def score_item(
     unsupported = unsupported_numbers(answer, seen, item.question)
     if not item.answerable:
         return {"correct_refusal": int(is_refusal(answer)), "unsupported_numbers": unsupported}
+    # 기대 섹션이 없는 문항(도구로 답하는 문항)은 검색 지표를 내지 않는다. 0으로 세면 평균이 왜곡된다.
+    retrieval = (
+        {
+            "hit_strict": hit_strict(retrieved, item.expected_sections),
+            "hit_loose": hit_loose(retrieved, item.expected_sections),
+            "mrr": mrr(retrieved, item.expected_sections),
+        }
+        if item.expected_sections
+        else {}
+    )
     return {
-        "hit_strict": hit_strict(retrieved, item.expected_sections),
-        "hit_loose": hit_loose(retrieved, item.expected_sections),
-        "mrr": mrr(retrieved, item.expected_sections),
+        **retrieval,
         "fact_recall": fact_recall(answer, item.must_include),
         "false_refusal": int(is_refusal(answer)),
         "unsupported_numbers": unsupported,

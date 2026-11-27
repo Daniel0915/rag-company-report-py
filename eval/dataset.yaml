@@ -831,3 +831,165 @@
     section_order: 0
     section_title: 표지
   pblntf_ty: I
+- id: x0001
+  corp_code: 00126380
+  question: 2025년 사업보고서 기준 최대주주는 누구이고, 최대주주 본인의 보통주 지분율은 몇 %야?
+  answerable: true
+  origin: manual
+  expected_answer: 최대주주는 삼성생명보험㈜이며 기말 보통주 지분율은 8.51%입니다 (2025 사업보고서, 접수번호 20260310002820).
+  must_include:
+  - 삼성생명
+  - '8.51'
+  expected_sections:
+  - rcept_no: '20260310002820'
+    source_file: 20260310002820.xml
+    section_order: 106
+    section_title: VII. 주주에 관한 사항
+  pblntf_ty: A
+  expected_tools:
+  - dart_largest_shareholder
+  - search_disclosures
+- id: x0002
+  corp_code: 00126380
+  question: 2025년 보통주 주당 현금배당금은 얼마야?
+  answerable: true
+  origin: manual
+  expected_answer: 2025년 보통주 주당 현금배당금은 1,668원입니다 (2025 사업보고서 배당 현황, 접수번호 20260310002820).
+  must_include:
+  - 1,668
+  expected_sections:
+  - rcept_no: '20260310002820'
+    source_file: 20260310002820.xml
+    section_order: 91
+    section_title: 6. 배당에 관한 사항
+  pblntf_ty: A
+  expected_tools:
+  - dart_dividend
+- id: x0003
+  corp_code: 00126380
+  question: DART 주요 재무지표 기준 2025년 ROE는 몇 %야?
+  answerable: true
+  origin: manual
+  expected_answer: 2025년 ROE는 10.783%입니다 (DART 단일회사 주요 재무지표, 2025 사업보고서).
+  must_include:
+  - '10.78'
+  expected_tools:
+  - dart_financial_index
+- id: x0004
+  corp_code: 00126380
+  question: 2026년 11월 20일 종가는 얼마야?
+  answerable: true
+  origin: manual
+  expected_answer: 2026년 11월 20일 종가는 180,900원입니다 (KRX 시세).
+  must_include:
+  - 180,900
+  expected_tools:
+  - krx_stock_price
+- id: x0005
+  corp_code: 00164779
+  question: 2025년 사업보고서 기준 최대주주는 누구이고, 최대주주 본인의 보통주 지분율은 몇 %야?
+  answerable: true
+  origin: manual
+  expected_answer: 최대주주는 SK스퀘어(주)이며 기말 보통주 지분율은 20.07%입니다 (2025 사업보고서, 접수번호 20260317000635).
+  must_include:
+  - SK스퀘어
+  - '20.07'
+  expected_sections:
+  - rcept_no: '20260317000635'
+    source_file: 20260317000635.xml
+    section_order: 107
+    section_title: VII. 주주에 관한 사항
+  pblntf_ty: A
+  expected_tools:
+  - dart_largest_shareholder
+  - search_disclosures
+- id: x0006
+  corp_code: 00164779
+  question: 2025년 보통주 주당 현금배당금은 얼마야?
+  answerable: true
+  origin: manual
+  expected_answer: 2025년 보통주 주당 현금배당금은 3,000원입니다 (2025 사업보고서 배당 현황, 접수번호 20260317000635).
+  must_include:
+  - 3,000
+  expected_sections:
+  - rcept_no: '20260317000635'
+    source_file: 20260317000635.xml
+    section_order: 92
+    section_title: 6. 배당에 관한 사항
+  pblntf_ty: A
+  expected_tools:
+  - dart_dividend
+- id: x0007
+  corp_code: 00164779
+  question: DART 주요 재무지표 기준 2025년 ROE는 몇 %야?
+  answerable: true
+  origin: manual
+  expected_answer: 2025년 ROE는 44.144%입니다 (DART 단일회사 주요 재무지표, 2025 사업보고서).
+  must_include:
+  - '44.14'
+  expected_tools:
+  - dart_financial_index
+- id: x0008
+  corp_code: 00164779
+  question: 2026년 11월 20일 종가는 얼마야?
+  answerable: true
+  origin: manual
+  expected_answer: 2026년 11월 20일 종가는 1,100,000원입니다 (KRX 시세).
+  must_include:
+  - 1,100,000
+  expected_tools:
+  - krx_stock_price
+- id: x0009
+  corp_code: '00164742'
+  question: 2025년 사업보고서 기준 최대주주는 누구이고, 최대주주 본인의 보통주 지분율은 몇 %야?
+  answerable: true
+  origin: manual
+  expected_answer: 최대주주는 현대모비스이며 기말 보통주 지분율은 22.36%입니다 (2025 사업보고서, 접수번호 20260318001394).
+  must_include:
+  - 현대모비스
+  - '22.36'
+  expected_sections:
+  - rcept_no: '20260318001394'
+    source_file: 20260318001394.xml
+    section_order: 119
+    section_title: VII. 주주에 관한 사항
+  pblntf_ty: A
+  expected_tools:
+  - dart_largest_shareholder
+  - search_disclosures
+- id: x0010
+  corp_code: '00164742'
+  question: 2025년 보통주 주당 현금배당금은 얼마야?
+  answerable: true
+  origin: manual
+  expected_answer: 2025년 보통주 주당 현금배당금은 10,000원입니다 (2025 사업보고서 배당 현황, 접수번호 20260318001394).
+  must_include:
+  - 10,000
+  expected_sections:
+  - rcept_no: '20260318001394'
+    source_file: 20260318001394.xml
+    section_order: 104
+    section_title: 6. 배당에 관한 사항
+  pblntf_ty: A
+  expected_tools:
+  - dart_dividend
+- id: x0011
+  corp_code: '00164742'
+  question: DART 주요 재무지표 기준 2025년 ROE는 몇 %야?
+  answerable: true
+  origin: manual
+  expected_answer: 2025년 ROE는 8.361%입니다 (DART 단일회사 주요 재무지표, 2025 사업보고서).
+  must_include:
+  - '8.36'
+  expected_tools:
+  - dart_financial_index
+- id: x0012
+  corp_code: '00164742'
+  question: 2026년 11월 20일 종가는 얼마야?
+  answerable: true
+  origin: manual
+  expected_answer: 2026년 11월 20일 종가는 253,000원입니다 (KRX 시세).
+  must_include:
+  - 253,000
+  expected_tools:
+  - krx_stock_price
