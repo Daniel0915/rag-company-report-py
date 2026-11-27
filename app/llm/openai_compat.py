@@ -1,4 +1,4 @@
-"""OpenAI 호환 API 클라이언트. 지금은 OpenRouter를 거쳐 DeepSeek를 부른다(선불 크레딧, API 키는 .env에만)."""
+"""OpenAI 호환 API 클라이언트. DeepSeek 공식 API를 부른다(선불 크레딧, API 키는 .env에만)."""
 from __future__ import annotations
 
 from openai import OpenAI
@@ -12,11 +12,11 @@ class OpenAICompatClient:
     def __init__(self, settings: Settings, client: OpenAI | None = None) -> None:
         self._model = settings.deepseek_model
         self._max_tokens = settings.deepseek_max_tokens
-        self._has_key = bool(settings.openrouter_api_key) or client is not None
+        self._has_key = bool(settings.deepseek_api_key) or client is not None
         self._client = client or OpenAI(
             # 키가 없을 때도 앱이 뜨도록 자리값을 넣고, 실제 호출에서 막는다
-            api_key=settings.openrouter_api_key or "unset",
-            base_url=settings.openrouter_base_url,
+            api_key=settings.deepseek_api_key or "unset",
+            base_url=settings.deepseek_base_url,
             timeout=settings.deepseek_timeout_seconds,
             max_retries=2,
         )
@@ -28,7 +28,7 @@ class OpenAICompatClient:
     def complete(self, messages: list[dict], tools: list[dict] | None = None, tool_choice: str | None = None) -> ChatCompletion:
         """chat.completions 한 번. 사용량을 기록한다."""
         if not self._has_key:
-            raise RuntimeError("OPENROUTER_API_KEY가 설정되지 않았습니다")
+            raise RuntimeError("DEEPSEEK_API_KEY가 설정되지 않았습니다")
         kwargs: dict = {"model": self._model, "messages": messages, "max_tokens": self._max_tokens}
         if tools:
             kwargs["tools"] = tools
@@ -41,7 +41,7 @@ class OpenAICompatClient:
                 LlmCall(
                     input_tokens=usage.prompt_tokens or 0,
                     output_tokens=usage.completion_tokens or 0,
-                    cost_usd=float(getattr(usage, "cost", None) or 0.0),  # OpenRouter가 붙이는 비용
+                    cost_usd=float(getattr(usage, "cost", None) or 0.0),  # OpenRouter는 비용을 붙여 주고, DeepSeek 공식 API는 주지 않아 0으로 남는다
                 )
             )
         if not response.choices:

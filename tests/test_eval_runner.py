@@ -257,3 +257,18 @@ def test_run_item_records_answer_usage_but_not_judge_usage():
 
 def test_local_run_item_has_no_usage():
     assert run_item(FakeChat(), _item(), 6, "local", None)["usage"] is None
+
+
+def test_run_file_name_marks_external_mcp():
+    name = run_file_name(datetime(2026, 11, 27, 9, 0), "deepseek", 6, agent=True, external=True)
+    assert name == "20261127-090000_deepseek_k6_agent_ext.json"
+
+
+def test_cli_external_mcp_flag_sets_settings():
+    from app.config import Settings
+    from app.eval.cli import build_parser, run_settings
+
+    base = Settings(_env_file=None)
+    on = run_settings(build_parser().parse_args(["run", "--agent", "--external-mcp"]), base)
+    off = run_settings(build_parser().parse_args(["run", "--agent"]), base)
+    assert on.agent_external_mcp is True and off.agent_external_mcp is False

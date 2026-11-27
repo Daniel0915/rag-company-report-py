@@ -222,3 +222,22 @@ def test_expected_tools_validated(tmp_path):
         save_items(path, [_item(expected_tools=bad)])
         with pytest.raises(DatasetError, match="q0001"):
             load_items(path)
+
+
+def test_expected_tools_accepts_external_names(tmp_path):
+    path = tmp_path / "dataset.yaml"
+    save_items(path, [_item(expected_tools=["dart_dividend", "krx_stock_price"])])
+    assert load_items(path)[0].expected_tools == ["dart_dividend", "krx_stock_price"]
+
+
+def test_answerable_tool_item_may_omit_sections(tmp_path):
+    path = tmp_path / "dataset.yaml"
+    save_items(path, [_item(expected_sections=[], expected_tools=["krx_stock_price"])])
+    assert load_items(path)[0].expected_sections == []
+
+
+def test_answerable_item_without_sections_or_tools_is_rejected(tmp_path):
+    path = tmp_path / "dataset.yaml"
+    save_items(path, [_item(expected_sections=[])])
+    with pytest.raises(DatasetError, match="expected_sections"):
+        load_items(path)

@@ -16,7 +16,28 @@ AGENT_SYSTEM_PROMPT = """당신은 상장사 공시를 근거로 답하는 분�
 """
 
 
-def build_agent_system_prompt(corp_name: str, corp_code: str, today: date) -> str:
-    return AGENT_SYSTEM_PROMPT.format(
+_WEB_RULE = "2. web_search는 공시 도구로 근거를 찾지 못했거나, 공시에 없는 정보(주가, 업계 동향 등)를 물을 때만 사용하세요."
+_WEB_RULE_EXTERNAL = "2. web_search는 공시 도구로 근거를 찾지 못했거나, 공시에 없는 정보(업계 동향 등)를 물을 때만 사용하세요."
+_EXTERNAL_RULES = (
+    "6. 최대주주·배당·임원·재무지표는 dart_largest_shareholder, dart_dividend, dart_executives, "
+    "dart_financial_index를 먼저 사용하세요.\n"
+    "7. 주가와 거래량은 krx_stock_price를 사용하세요. 기간은 최대 31일입니다.\n"
+)
+_KRX_AUTH_RULE = (
+    "8. 시가총액은 krx_market_cap, PER·PBR 등 주식 투자지표는 krx_market_fundamentals를 먼저 사용하세요. "
+    "하루를 조회할 때는 시작일과 종료일을 같게 지정하세요.\n"
+)
+
+
+def build_agent_system_prompt(
+    corp_name: str, corp_code: str, today: date, external: bool = False, *, krx_auth: bool = False
+) -> str:
+    """사용 가능한 외부 MCP 도구에 맞춰 도구 사용 규칙을 추가한다."""
+    prompt = AGENT_SYSTEM_PROMPT.format(
         corp_name=corp_name, corp_code=corp_code, today=today.isoformat()
     )
+    if external:
+        prompt = prompt.replace(_WEB_RULE, _WEB_RULE_EXTERNAL) + _EXTERNAL_RULES
+        if krx_auth:
+            prompt += _KRX_AUTH_RULE
+    return prompt

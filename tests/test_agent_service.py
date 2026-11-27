@@ -4,11 +4,15 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.agent import service as service_module
 from app.agent.claude_agent import ClaudeAgentResult
+from app.agent.external_mcp import available_external_tools
 from app.agent.loop import LoopResult
-from app.agent.prompts import build_agent_system_prompt
+from app.agent.prompts import AGENT_SYSTEM_PROMPT, build_agent_system_prompt
 from app.agent.service import AgentResult, AgentService
+from app.agent.tools import TOOL_NAMES, ToolResult, ToolSpec
 from app.agent.trace import ToolCallRecord
 from app.models import ChatTurnDto
 
@@ -27,9 +31,12 @@ def _rec(seq, name, sources, text="결과" * 200):
     return ToolCallRecord(seq, name, {"q": "x"}, True, text, sources)
 
 
-def _service():
-    settings = SimpleNamespace(agent_max_tool_calls=6)
-    return AgentService(settings, MagicMock(), MagicMock())
+def _settings(external=False, krx_auth=False):
+    return SimpleNamespace(agent_max_tool_calls=6, agent_external_mcp=external, krx_auth_configured=krx_auth)
+
+
+def _service(external=False, krx_auth=False):
+    return AgentService(_settings(external, krx_auth), MagicMock(), MagicMock())
 
 
 def _stub_run(svc, records, answer="답"):
@@ -152,10 +159,95 @@ def test_agent_run_deepseek_uses_openai_step_model(monkeypatch):
     monkeypatch.setattr(service_module, "open_tool_context", lambda s, c: (MagicMock(), lambda: None))
     monkeypatch.setattr(service_module, "build_tools", lambda ctx: [])
     chat = MagicMock()
-    svc = AgentService(SimpleNamespace(agent_max_tool_calls=6), chat, MagicMock())
+    svc = AgentService(_settings(), chat, MagicMock())
 
     result = svc.run("q", CORP, "deepseek")
 
     assert result.answer == "딥시크답" and result.prompt_tokens == 321
     assert type(seen["model"]).__name__ == "OpenAIStepModel"
     chat.deepseek_client.assert_called_once()
+
+
+def _named_specs(names):
+    return [ToolSpec(n, n, {"type": "object", "properties": {}}, lambda a: ToolResult(True, "")) for n in names]
+
+
+def _wire_loop(monkeypatch, loop=None):
+    seen = {}
+    monkeypatch.setattr(service_module, "open_tool_context", lambda s, c: (object(), lambda: None))
+    monkeypatch.setattr(service_module, "build_tools", lambda ctx: _named_specs(TOOL_NAMES))
+
+    def fake_loop(model, executor, system_prompt, question):
+        seen["names"] = list(executor._specs)
+        seen["prompt"] = system_prompt
+        if loop:
+            loop()
+        return LoopResult("답", None)
+
+    monkeypatch.setattr(service_module, "run_tool_loop", fake_loop)
+    return seen
+
+
+def test_external_tools_absent_when_disabled(monkeypatch):
+    seen = _wire_loop(monkeypatch)
+    opened = MagicMock()
+    monkeypatch.setattr(service_module, "open_external_pool", opened)
+    _service(external=False).run("q", CORP, None)
+    assert seen["names"] == list(TOOL_NAMES)
+    assert "krx_stock_price" not in seen["prompt"]
+    opened.assert_not_called()
+
+
+@pytest.mark.parametrize("krx_auth", [False, True])
+def test_external_tools_added_and_pool_closed_when_enabled(monkeypatch, krx_auth):
+    seen = _wire_loop(monkeypatch, loop=MagicMock(side_effect=RuntimeError("x")))
+    pool = MagicMock()
+    monkeypatch.setattr(service_module, "open_external_pool", lambda s: pool)
+    monkeypatch.setattr(service_module, "secrets_of", lambda s: [])
+    try:
+        _service(external=True, krx_auth=krx_auth).run("q", CORP, None)
+    except RuntimeError:
+        pass
+    assert seen["names"] == list(TOOL_NAMES) + [tool.name for tool in available_external_tools(krx_auth)]
+    assert "krx_stock_price" in seen["prompt"]
+    assert ("krx_market_cap" in seen["prompt"]) is krx_auth
+    pool.close.assert_called_once()
+
+
+def test_external_tools_skipped_for_unknown_company(monkeypatch):
+    seen = _wire_loop(monkeypatch)
+    opened = MagicMock()
+    monkeypatch.setattr(service_module, "open_external_pool", opened)
+    _service(external=True).run("q", "99999999", None)
+    assert seen["names"] == list(TOOL_NAMES)
+    opened.assert_not_called()
+
+
+def test_collect_sources_maps_external():
+    svc = _service()
+    _stub_run(svc, [
+        _rec(1, "dart_dividend", [{"kind": "external", "server": "opendart", "tool": "dart_dividend",
+                                   "corp_name": "삼성전자", "rcept_no": "20260310002820",
+                                   "label": "DART API · 배당"}]),
+        _rec(2, "krx_stock_price", [{"kind": "external", "server": "pykrx", "tool": "krx_stock_price",
+                                     "label": "KRX 시세 (pykrx) 2026-11-20~2026-11-26"}]),
+    ])
+    resp = svc.chat("q", CORP, [], None)
+    dart, krx = resp.sources
+    assert (dart.corpName, dart.reportNm, dart.rceptNo, dart.sectionTitle, dart.docType) == (
+        "삼성전자", "DART API · 배당", "20260310002820", None, "DART_API")
+    assert (krx.corpName, krx.reportNm, krx.rceptNo, krx.docType) == (
+        None, "KRX 시세 (pykrx) 2026-11-20~2026-11-26", None, "KRX")
+
+
+def test_prompt_unchanged_without_external():
+    today = date(2026, 11, 27)
+    assert build_agent_system_prompt("삼성전자", CORP, today) == AGENT_SYSTEM_PROMPT.format(
+        corp_name="삼성전자", corp_code=CORP, today="2026-11-27")
+
+
+def test_prompt_with_external_adds_rules():
+    p = build_agent_system_prompt("삼성전자", CORP, date(2026, 11, 27), external=True)
+    for needle in ["krx_stock_price", "dart_dividend", "dart_financial_index", "31일"]:
+        assert needle in p
+    assert "주가, 업계 동향" not in p

@@ -57,6 +57,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--out-dir", default=DEFAULT_RUNS_DIR)
     p_run.add_argument("--agent", action="store_true", help="고정 경로 대신 에이전트(도구 호출) 경로로 돌린다. --top-k는 쓰지 않는다")
     p_run.add_argument("--corp", help="이 기업의 문항만 돌린다")
+    p_run.add_argument(
+        "--external-mcp", action="store_true", help="에이전트에 외부 MCP 도구(dart_*, krx_*)를 붙인다"
+    )
 
     p_cmp = sub.add_parser("compare", help="두 결과 파일의 지표와 문항별 변화를 비교한다")
     p_cmp.add_argument("run_a")
@@ -113,6 +116,14 @@ def judge_failure_lines(rows: list[dict], first_error: str | None) -> list[str]:
     return [f"채점 실패 {failed}건", f"첫 채점 오류: {first_error}"]
 
 
+def run_settings(args: argparse.Namespace, settings):
+    """명령행 옵션을 설정에 반영한다."""
+    update = {"agent_external_mcp": args.external_mcp}
+    if args.claude_model:
+        update["claude_model"] = args.claude_model
+    return settings.model_copy(update=update)
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     items = load_items(args.dataset)
     dataset_hash = file_hash(args.dataset)
@@ -121,9 +132,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if not items:
         print("정답셋이 비어 있습니다")
         return 1
-    settings = get_settings()
-    if args.claude_model:
-        settings = settings.model_copy(update={"claude_model": args.claude_model})
+    settings = run_settings(args, get_settings())
     if args.provider == "claude" and args.judge == "claude" and settings.claude_model == args.judge_model:
         print("경고: 답변과 채점이 같은 claude 모델이라 자기 답을 자기가 채점합니다")
 
@@ -179,6 +188,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         "judge": args.judge,
         "judge_model": args.judge_model if args.judge == "claude" else None,
         "agent": args.agent,
+        "external_mcp": args.external_mcp,
         "temperature": args.temperature,
         "seed": args.seed,
         "dataset_path": args.dataset,
@@ -187,7 +197,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
         "started_at": started.isoformat(),
     }
     run_file = build_run_file(config, index, rows)
-    out_path = Path(args.out_dir) / run_file_name(started, args.provider, args.top_k, agent=args.agent)
+    out_path = Path(args.out_dir) / run_file_name(
+        started, args.provider, args.top_k, agent=args.agent, external=args.external_mcp
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(run_file, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"결과 파일: {out_path}")

@@ -8,7 +8,9 @@ from datetime import date
 from app.agent.claude_agent import run_claude_agent
 from app.agent.context import open_tool_context
 from app.agent.executor import ToolExecutor
+from app.agent.external_mcp import build_external_tools, external_scope
 from app.agent.loop import OllamaStepModel, OpenAIStepModel, run_tool_loop
+from app.agent.mcp_pool import open_external_pool, secrets_of
 from app.agent.prompts import build_agent_system_prompt
 from app.agent.tools import build_tools
 from app.agent.trace import ToolCallRecord
@@ -38,8 +40,10 @@ class AgentService:
 
     def run(self, question: str, corp_code: str, provider: str | None) -> AgentResult:
         company = find(corp_code)
+        scope = external_scope(corp_code) if self._settings.agent_external_mcp else None
+        krx_auth = scope is not None and self._settings.krx_auth_configured
         system_prompt = build_agent_system_prompt(
-            company.name if company else corp_code, corp_code, date.today()
+            company.name if company else corp_code, corp_code, date.today(), external=scope is not None, krx_auth=krx_auth
         )
         llm = _normalize_provider(provider)
         if llm == "claude":
@@ -52,13 +56,17 @@ class AgentService:
         )
 
         ctx, close = open_tool_context(self._settings, corp_code)
+        pool = open_external_pool(self._settings) if scope else None
         try:
-            executor = ToolExecutor(
-                build_tools(ctx), max_calls=self._settings.agent_max_tool_calls
-            )
+            specs = build_tools(ctx)
+            if pool is not None and scope is not None:
+                specs += build_external_tools(pool, scope, secrets_of(self._settings), krx_auth=krx_auth)
+            executor = ToolExecutor(specs, max_calls=self._settings.agent_max_tool_calls)
             loop = run_tool_loop(model, executor, system_prompt, question)
             return AgentResult(loop.answer, executor.records, loop.prompt_tokens)
         finally:
+            if pool is not None:
+                pool.close()
             close()
 
     def chat(
@@ -96,7 +104,15 @@ def _collect_sources(records: list[ToolCallRecord]) -> list[SourceItem]:
     items: list[SourceItem] = []
     for record in records:
         for source in record.sources:
-            if source.get("kind") == "web":
+            if source.get("kind") == "external":
+                item = SourceItem(
+                    corpName=source.get("corp_name"),
+                    reportNm=source.get("label"),
+                    rceptNo=source.get("rcept_no"),
+                    sectionTitle=None,
+                    docType="DART_API" if source.get("server") == "opendart" else "KRX",
+                )
+            elif source.get("kind") == "web":
                 # exclude_unset 응답에서도 키가 빠지지 않도록 None 필드를 명시한다.
                 item = SourceItem(
                     corpName=None,

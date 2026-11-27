@@ -53,7 +53,7 @@ def test_generate_returns_text_and_records_usage():
     fake = FakeOpenAI([_completion(content=" 답 ")])
     with metered() as calls:
         assert _client(fake).generate("시스템", "질문") == "답"
-    assert fake.requests[0]["model"] == "deepseek/deepseek-v4.1-flash"
+    assert fake.requests[0]["model"] == "deepseek-flash"
     assert fake.requests[0]["max_tokens"] == 8192
     assert fake.requests[0]["messages"][0] == {"role": "system", "content": "시스템"}
     [call] = calls
@@ -61,10 +61,25 @@ def test_generate_returns_text_and_records_usage():
 
 
 def test_missing_key_fails_on_call_not_on_startup():
-    client = OpenAICompatClient(Settings(_env_file=None, openrouter_api_key=""))
-    with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
+    client = OpenAICompatClient(Settings(_env_file=None, deepseek_api_key=""))
+    with pytest.raises(RuntimeError, match="DEEPSEEK_API_KEY"):
         client.generate("", "질문")
     client.close()
+
+
+def test_defaults_point_at_official_deepseek_api():
+    client = OpenAICompatClient(Settings(_env_file=None, deepseek_api_key="k"))
+    assert str(client._client.base_url).rstrip("/") == "https://api.deepseek.com"
+    assert client.model == "deepseek-flash"
+    client.close()
+
+
+def test_usage_without_cost_records_zero():
+    completion = _completion(content="답")
+    completion.usage = completion.usage.model_copy(update={"cost": None})
+    with metered() as calls:
+        _client(FakeOpenAI([completion])).generate("", "질문")
+    assert calls[0].cost_usd == 0.0
 
 
 def _echo_tool() -> ToolSpec:

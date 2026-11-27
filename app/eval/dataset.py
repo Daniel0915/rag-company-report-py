@@ -9,11 +9,14 @@ from pathlib import Path
 
 import yaml
 
+from app.agent.external_mcp import EXTERNAL_TOOL_NAMES
 from app.agent.tools import TOOL_NAMES
 
 ORIGINS = ("generated", "manual")
 REVIEWS = ("pending", "ok", "drop")
 _GENERATED_ID = re.compile(r"^q(\d+)$")
+# 외부 MCP 도구는 설정과 상관없이 정답셋에 적을 수 있다(꺼진 상태 실행이 기준선이 된다).
+KNOWN_TOOL_NAMES: tuple[str, ...] = TOOL_NAMES + EXTERNAL_TOOL_NAMES
 
 
 class DatasetError(ValueError):
@@ -80,8 +83,8 @@ def _parse(entry: object, cls: type[Item]) -> Item:
         if entry.get(name) is not None and not isinstance(entry[name], list):
             raise DatasetError(f"{item_id}: {name}는 목록이어야 합니다 ({entry[name]!r})")
     tools = entry.get("expected_tools") or []
-    if not all(isinstance(t, str) and t in TOOL_NAMES for t in tools):
-        raise DatasetError(f"{item_id}: expected_tools는 {list(TOOL_NAMES)} 중에서 골라야 합니다 ({tools!r})")
+    if not all(isinstance(t, str) and t in KNOWN_TOOL_NAMES for t in tools):
+        raise DatasetError(f"{item_id}: expected_tools는 {list(KNOWN_TOOL_NAMES)} 중에서 골라야 합니다 ({tools!r})")
     try:
         kwargs = dict(entry)
         kwargs["expected_sections"] = [Section(**s) for s in entry.get("expected_sections") or []]
@@ -98,8 +101,11 @@ def _validate(items: list[Item]) -> None:
         seen.add(item.id)
         if item.origin not in ORIGINS:
             raise DatasetError(f"{item.id}: origin은 {'|'.join(ORIGINS)} 중 하나여야 합니다 ({item.origin!r})")
-        if item.answerable and not (item.must_include and item.expected_sections):
-            raise DatasetError(f"{item.id}: answerable 문항은 must_include와 expected_sections가 필요합니다")
+        # 근거가 공시 원문에 없는 문항(주가, DART 계산 지표 등)은 expected_tools로 답을 찾으므로 섹션을 비울 수 있다.
+        if item.answerable and not (item.must_include and (item.expected_sections or item.expected_tools)):
+            raise DatasetError(
+                f"{item.id}: answerable 문항은 must_include와 expected_sections(또는 expected_tools)가 필요합니다"
+            )
         review = getattr(item, "review", "pending")
         if review not in REVIEWS:
             raise DatasetError(f"{item.id}: review는 {'|'.join(REVIEWS)} 중 하나여야 합니다 ({review!r})")

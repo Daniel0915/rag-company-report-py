@@ -364,7 +364,9 @@ python -m app.eval compare eval/runs/A.json eval/runs/B.json
 **기대 도구(`expected_tools`)**는 에이전트 평가용 선택 필드입니다. 문항을 풀 때 쓰면 맞는
 도구 이름을 목록으로 적으며, 이 중 하나라도 쓰면 `tool_selection`이 1이 됩니다. 비워 두면 그
 문항은 `tool_selection`, `unnecessary_web` 집계에서 빠지고, 고정 경로 평가에서는 쓰지 않습니다.
-도구 이름은 아래 에이전트 모드의 6개 중에서 골라야 하며, 다른 이름이면 정답셋을 읽을 때 거부됩니다.
+도구 이름은 아래 에이전트 모드의 도구 6개와 외부 MCP 도구 목록에서 골라야 하며, 다른 이름이면
+정답셋을 읽을 때 거부됩니다. 근거가 공시 원문에 없는 문항(주가, DART가 계산한 재무지표 등)은
+`expected_tools`를 적으면 `expected_sections`를 비울 수 있고, 이런 문항은 검색 지표(`hit_*`, `mrr`)에서 빠집니다.
 
 ```yaml
 - id: m0002
@@ -434,6 +436,44 @@ YAML 주석은 보존되지 않습니다.
 워치리스트 밖 `corp_code`, 빈 결과, 외부 API 오류는 예외 대신 실패 결과(`ok=false`)나
 "결과 없음"으로 모델에 돌려줍니다.
 
+### 외부 MCP 도구
+
+에이전트는 남이 만든 MCP 서버 두 개의 도구 일부를 위 6개와 함께 씁니다. 우리 앱이 MCP
+클라이언트가 되어 요청마다 서버를 띄우고(`app/agent/mcp_pool.py`), 고른 도구만 같은 도구 목록에
+붙입니다(`app/agent/external_mcp.py`). 기본으로 켜져 있고, `.env`에 `AGENT_EXTERNAL_MCP=false`를
+넣으면 끕니다. 2026-11-27 DeepSeek 에이전트 평가(64문항)에서 켠 쪽이 기존 52문항 정답 29→33,
+새 도구 문항 12개 정답 10→12로 나아져 기본값을 켬으로 바꿨습니다.
+
+| 도구 | 외부 서버 · 원격 도구 | 하는 일 |
+|---|---|---|
+| `dart_largest_shareholder` | `opendart-mcp` · `get_largest_shareholder` | 최대주주와 특수관계인 지분. `year`, `report` |
+| `dart_dividend` | `opendart-mcp` · `get_dividend_info` | 주당 배당금, 배당성향, 배당수익률 |
+| `dart_executives` | `opendart-mcp` · `get_executive_status` | 임원 현황 |
+| `dart_financial_index` | `opendart-mcp` · `get_single_financial_index` | 수익성·안정성·성장성·활동성 지표(ROE, 부채비율 등). `category` |
+| `krx_stock_price` | `pykrx-mcp` · `get_stock_ohlcv` | 일별 시가·고가·저가·종가·거래량(수정주가). 기간은 최대 31일 |
+| `krx_market_cap` | `pykrx-mcp` · `get_market_cap_by_date` | 일별 시가총액(원)과 상장주식수. KRX 로그인 필요, 최대 31일 |
+| `krx_market_fundamentals` | `pykrx-mcp` · `get_market_fundamental_by_date` | 일별 PER·PBR·EPS·BPS·배당수익률. KRX 로그인 필요, 최대 31일 |
+
+- **실행 방식:** 두 서버는 MCP SDK 1.x로 짜여 있어 이 저장소(2.x)와 섞지 않고
+  `uvx --with "mcp<2" opendart-mcp@0.1.0`, `uvx --with "mcp<2" pykrx-mcp@0.1.3`으로 따로 띄웁니다.
+  `uv`가 설치되어 있어야 합니다. 처음 실행할 때 패키지를 내려받는데, 이 시간이 시작 시간 제한(30초)에
+  걸리면 첫 요청의 외부 도구가 실패합니다. 켜기 전에 아래 명령으로 한 번 미리 받아 두세요.
+
+  ```bash
+  uvx --with "mcp<2" opendart-mcp@0.1.0 --help
+  uvx --with "mcp<2" pykrx-mcp@0.1.3 --help
+  ```
+- **회사 범위:** `corp_code`와 종목코드는 모델에게 보이지 않고 현재 대화 중인 회사로 넣습니다.
+- **인증:** DART 키는 `opendart-mcp`에 넘깁니다. 시가총액과 투자지표 도구는 로컬 `.env`의
+  `KRX_ID`와 `KRX_PW`를 모두 설정하면 활성화됩니다. 이 계정은 해당 두 도구를 실행하는 `pykrx-mcp`
+  프로세스에 전달합니다. 결과·오류의 인증값은 가리고, 인증값이 포함된 서버 stderr는 폐기합니다.
+- **실패:** 서버가 안 뜨거나 `AGENT_EXTERNAL_MCP_TIMEOUT_SECONDS`(기본 30초) 안에 답하지 않으면
+  그 호출만 실패 결과가 되고, 모델은 다른 도구로 계속 답합니다.
+- **출처:** `sources`에 `docType`이 `"DART_API"`(접수번호 포함) 또는 `"KRX"`인 항목으로 들어갑니다.
+- **주가 데이터:** 일별 수정주가는 pykrx의 네이버 금융 경로에서 조회하며 KRX 계정 없이 사용할 수 있습니다.
+- **확인:** `RUN_EXTERNAL_MCP=1 pytest tests/test_external_mcp_live.py`가 실제 서버의 도구 목록과
+  스키마와 삼성전자 응답을 확인합니다. KRX 계정 설정이 있으면 시가총액과 PER·PBR 응답도 확인합니다.
+
 ### 요청 예시
 
 ```bash
@@ -458,13 +498,15 @@ curl -X POST http://localhost:8080/api/company-report/chat \
 
 | | 로컬(`provider: local`) | DeepSeek(`provider: deepseek`) | Claude(`provider: claude`) |
 |---|---|---|---|
-| 호출 방식 | Ollama | OpenRouter의 OpenAI 호환 API(`openai` 라이브러리) | 로그인된 `claude` CLI(구독) |
+| 호출 방식 | Ollama | DeepSeek 공식 API(OpenAI 호환, `openai` 라이브러리) | 로그인된 `claude` CLI(구독) |
 | 도구 호출 | Ollama Function Calling을 서버 안의 루프가 돌림 | 같은 루프를 OpenAI 방식 function calling으로 돌림 | CLI에 MCP stdio 서버(`app/agent/mcp_server.py`)를 붙여 CLI가 호출 |
-| 설정 | 컨텍스트 `AGENT_OLLAMA_NUM_CTX`(기본 16384) | `OPENROUTER_API_KEY`, 모델 `DEEPSEEK_MODEL`(기본 `deepseek/deepseek-v4.1-flash`) | 타임아웃 `AGENT_CLAUDE_TIMEOUT_SECONDS`(기본 180초) |
+| 설정 | 컨텍스트 `AGENT_OLLAMA_NUM_CTX`(기본 16384) | `DEEPSEEK_API_KEY`, 모델 `DEEPSEEK_MODEL`(기본 `deepseek-flash`), 주소 `DEEPSEEK_BASE_URL`(기본 `https://api.deepseek.com`) | 타임아웃 `AGENT_CLAUDE_TIMEOUT_SECONDS`(기본 180초) |
 | 기록 | 실행기가 메모리에 기록 | 실행기가 메모리에 기록 | MCP 서버가 임시 파일에 JSON Lines로 남기고 끝난 뒤 읽음 |
 
-DeepSeek는 선불 크레딧을 쓰는 API입니다. `.env`의 `OPENROUTER_API_KEY=` 뒤에 키를
-넣으세요. 키가 비어 있으면 앱은 뜨고, `deepseek`를 고른 요청만 실패합니다. 고정 경로
+DeepSeek는 선불 크레딧을 쓰는 API입니다. `.env`의 `DEEPSEEK_API_KEY=` 뒤에 키를
+넣으세요. DeepSeek 공식 API는 응답에 비용을 주지 않으므로 평가 결과의 `cost_usd`는 0입니다.
+실제 사용액은 DeepSeek 콘솔의 잔액으로 확인합니다. OpenRouter 같은 다른 OpenAI 호환 API를
+쓰려면 `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `DEEPSEEK_API_KEY`를 그 서비스 값으로 바꿉니다. 키가 비어 있으면 앱은 뜨고, `deepseek`를 고른 요청만 실패합니다. 고정 경로
 (`agent` 없이)에서도 `provider: deepseek`로 답변할 수 있습니다.
 
 Claude 경로는 `--strict-mcp-config`로 우리 MCP 도구 6개만 허용하고 CLI 내장 도구(웹검색
@@ -495,6 +537,7 @@ python -m app.eval compare eval/runs/A.json eval/runs/B.json
 ```
 
 `--agent`는 고정 경로 대신 에이전트 경로로 정답셋을 돌립니다(`--top-k`는 쓰지 않음).
+`--external-mcp`를 더하면 외부 MCP 도구를 붙여 돌리고, 결과 파일 이름 끝에 `_ext`가 붙습니다.
 `--corp`, `--judge`, `--temperature`, `--seed`, `--provider`는 그대로 쓸 수 있고, 결과
 파일 이름 끝에 `_agent`가 붙으며 문항마다 `tool_calls`(seq, name, arguments, ok)가 기록됩니다.
 검색 지표(`hit_*`, `mrr`)는 `search_disclosures`가 돌려준 청크로 셉니다. 검색을 여러 번 하면

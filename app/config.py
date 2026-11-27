@@ -1,6 +1,7 @@
 """application.yml 대응 설정. 환경변수(.env)로 덮어쓴다."""
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,12 +31,12 @@ class Settings(BaseSettings):
     claude_model: str = "sonnet"
     claude_timeout_seconds: int = 60
 
-    # DeepSeek (OpenRouter의 OpenAI 호환 API, 선불 크레딧)
-    openrouter_api_key: str = ""
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    deepseek_model: str = "deepseek/deepseek-v4.1-flash"
+    # DeepSeek 공식 API(OpenAI 호환, 선불 크레딧). base_url·모델을 바꾸면 OpenRouter 같은 호환 API도 쓸 수 있다
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-flash"
     deepseek_timeout_seconds: int = 120
-    # 출력 상한(추론 포함). 안 주면 OpenRouter가 모델 최대치(13만 토큰)만큼 잔액을 미리 요구한다
+    # 출력 상한(추론 포함). OpenRouter는 이 값이 없으면 모델 최대치만큼 잔액을 미리 요구한다
     deepseek_max_tokens: int = 8192
 
     # 에이전트(도구 호출)
@@ -44,6 +45,11 @@ class Settings(BaseSettings):
     agent_ollama_num_ctx: int = 16384
     agent_claude_timeout_seconds: int = 180
     agent_max_tool_calls: int = 6
+    # 외부 MCP 서버(opendart-mcp, pykrx-mcp) 도구. 2026-11-27 켜기 판단 평가를 통과해 기본으로 켠다.
+    agent_external_mcp: bool = True
+    agent_external_mcp_timeout_seconds: int = 30
+    krx_id: str = Field(default="", repr=False)
+    krx_pw: str = Field(default="", repr=False)
 
     # 사이드카 파일 / 업로드 경로
     company_report_index_file: str = "data/company-report-index.json"
@@ -58,6 +64,10 @@ class Settings(BaseSettings):
     ingest_log_dir: str = "logs/ingest"
 
     max_upload_bytes: int = 30 * 1024 * 1024
+
+    @property
+    def krx_auth_configured(self) -> bool:
+        return bool(self.krx_id and self.krx_pw)
 
 
 @lru_cache

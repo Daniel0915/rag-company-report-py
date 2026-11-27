@@ -11,6 +11,7 @@ import app.agent.mcp_server as mcp_server
 from app.agent.context import REPO_ROOT, repo_settings
 from app.agent.mcp_server import mcp_tool_list
 from app.agent.tools import TOOL_NAMES, build_tools
+from app.config import Settings
 from test_agent_tools import fake_ctx
 
 
@@ -51,6 +52,45 @@ async def test_mcp_server_lists_tools_over_stdio_without_external_services(tmp_p
     assert [t.name for t in result.tools] == list(TOOL_NAMES)
     ownership = next(t for t in result.tools if t.name == "query_ownership_graph")
     assert "00126380" in ownership.description
+
+
+@pytest.mark.parametrize("krx_pw", ["", "sample-password"])
+async def test_mcp_server_lists_external_tools_over_stdio_when_enabled(tmp_path, krx_pw):
+    from app.agent.external_mcp import available_external_tools
+
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "app.agent.mcp_server"],
+        env={
+            "AGENT_CORP_CODE": "00126380",
+            "AGENT_EXTERNAL_MCP": "1",
+            "PYTHONPATH": str(REPO_ROOT),
+            "KRX_ID": "sample-account",
+            "KRX_PW": krx_pw,
+        },
+        cwd=tmp_path,
+    )
+    with anyio.fail_after(20):
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.list_tools()
+    assert [t.name for t in result.tools] == list(TOOL_NAMES) + [
+        tool.name for tool in available_external_tools(bool(krx_pw))
+    ]
+
+
+async def test_call_tool_routes_external_tools_to_pool(monkeypatch):
+    monkeypatch.setattr(mcp_server, "open_tool_context", lambda s, c: (fake_ctx(), lambda: None))
+    monkeypatch.setattr(mcp_server, "secrets_of", lambda s: [])
+
+    class Pool:
+        def call(self, server, tool, arguments):
+            return '{"status":"000","list":[{"rcept_no":"1","thstrm":"1,446"}]}', False
+
+    handler = mcp_server.make_call_tool_handler("00126380", 6, None, Settings(_env_file=None), Pool())
+    result = await _call(handler, "dart_dividend", {"year": 2025})
+    assert not result.is_error and "1,446" in result.content[0].text
 
 
 def _call(handler, name, arguments):

@@ -207,3 +207,10 @@ def test_score_item_uses_context_texts_for_numbers():
     answer = "영업이익은 6,567,000백만원입니다."
     assert score_item(item, [], answer)["unsupported_numbers"] == 1
     assert score_item(item, [], answer, context_texts=["영업이익 6567000백만원"])["unsupported_numbers"] == 0
+
+
+def test_score_item_without_expected_sections_skips_retrieval_metrics():
+    item = Item(id="x1", corp_code="00126380", question="종가는?", answerable=True, origin="manual",
+                must_include=["180,900"], expected_tools=["krx_stock_price"])
+    m = score_item(item, [], "종가는 180,900원입니다.")
+    assert m == {"fact_recall": 1.0, "false_refusal": 0, "unsupported_numbers": 1}
