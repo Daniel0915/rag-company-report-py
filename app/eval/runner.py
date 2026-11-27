@@ -199,8 +199,11 @@ def build_run_file(config: dict, index: dict, rows: list[dict]) -> dict:
     }
 
 
-def run_file_name(started: datetime, provider: str, top_k: int, agent: bool = False) -> str:
-    return f"{started:%Y%m%d-%H%M%S}_{provider}_k{top_k}{'_agent' if agent else ''}.json"
+def run_file_name(
+    started: datetime, provider: str, top_k: int, agent: bool = False, external: bool = False
+) -> str:
+    suffix = ("_agent" if agent else "") + ("_ext" if external else "")
+    return f"{started:%Y%m%d-%H%M%S}_{provider}_k{top_k}{suffix}.json"
 
 
 def git_commit() -> str | None:
