@@ -23,7 +23,7 @@ flowchart LR
         ollama["Ollama<br/>qwen2.5:3b 답변<br/>bge-m3 임베딩"]
         cli["claude CLI<br/>(구독 로그인)"]
         mcp["MCP 서버 (stdio)<br/>app/agent/mcp_server.py"]
-        extmcp["외부 MCP 서버 (uvx, 기본 꺼짐)<br/>opendart-mcp · pykrx-mcp"]
+        extmcp["외부 MCP 서버 (uvx)<br/>opendart-mcp · pykrx-mcp"]
     end
 
     subgraph external["외부 서비스 (인터넷)"]
@@ -220,7 +220,7 @@ flowchart LR
 ## 사용하는 서비스
 
 - **외부 API:** OpenDART, DeepSeek API(deepseek-flash), Tavily 웹 검색
-- **외부 MCP 서버(기본 꺼짐):** opendart-mcp, pykrx-mcp(KRX·네이버 금융 시세)
+- **외부 MCP 서버:** opendart-mcp, pykrx-mcp(KRX·네이버 금융 시세)
 - **Claude:** 로그인된 `claude` CLI(구독)
 - **스크래핑:** 네이버 뉴스
 - **로컬:** Neo4j(Docker), Ollama

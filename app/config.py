@@ -44,8 +44,8 @@ class Settings(BaseSettings):
     agent_ollama_num_ctx: int = 16384
     agent_claude_timeout_seconds: int = 180
     agent_max_tool_calls: int = 6
-    # 외부 MCP 서버(opendart-mcp, pykrx-mcp) 도구. 평가를 통과하기 전까지 기본은 꺼짐.
-    agent_external_mcp: bool = False
+    # 외부 MCP 서버(opendart-mcp, pykrx-mcp) 도구. 2026-11-27 켜기 판단 평가를 통과해 기본으로 켠다.
+    agent_external_mcp: bool = True
     agent_external_mcp_timeout_seconds: int = 30
 
     # 사이드카 파일 / 업로드 경로

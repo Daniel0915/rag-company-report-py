@@ -136,7 +136,7 @@ def test_open_external_pool_uses_settings(monkeypatch):
     captured = {}
     monkeypatch.setattr(mcp_pool, "ExternalMcpPool", lambda *a: captured.setdefault("args", a))
     s = Settings(_env_file=None, dart_api_key="D")
-    assert s.agent_external_mcp is False
+    assert s.agent_external_mcp is True
     mcp_pool.open_external_pool(s)
     commands, envs, timeout, secrets = captured["args"]
     assert commands["opendart"] == ["uvx", "--with", "mcp<2", "opendart-mcp@0.1.0"]
