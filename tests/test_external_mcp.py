@@ -183,3 +183,24 @@ def test_invalid_arguments_do_not_reach_caller():
 def test_listing_without_caller_fails_softly():
     r = build_external_tools(None, SCOPE, [])[0].run({"year": 2025})
     assert not r.ok and "외부 도구 사용 불가" in r.text
+
+
+def test_rows_become_a_table_with_constant_fields_hoisted():
+    rows = [
+        {"rcept_no": "20260310002820", "stlm_dt": "2025-12-31", "corp_code": "00126380",
+         "nm": f"주주{i}", "trmend_posesn_stock_qota_rt": f"{i}.00"}
+        for i in range(27)
+    ]
+    raw = json.dumps({"status": "000", "message": "정상", "list": rows}, ensure_ascii=False, indent=2)
+    r = normalize_result(_tool("dart_largest_shareholder"), {"year": 2025}, SCOPE, raw, False, [KEY])
+    data = json.loads(r.text)
+    assert data["rcept_no"] == "20260310002820" and data["stlm_dt"] == "2025-12-31"
+    assert data["columns"] == ["nm", "trmend_posesn_stock_qota_rt"]
+    assert data["rows"][26] == ["주주26", "26.00"]
+    assert r.text.count("nm") == 1
+
+
+def test_single_row_keeps_all_columns():
+    raw = '{"status":"000","list":[{"rcept_no":"1","se":"주당 현금배당금(원)","thstrm":"1,446"}]}'
+    data = json.loads(normalize_result(_tool("dart_dividend"), {"year": 2025}, SCOPE, raw, False, [KEY]).text)
+    assert data["columns"] == ["rcept_no", "se", "thstrm"] and data["rows"] == [["1", "주당 현금배당금(원)", "1,446"]]

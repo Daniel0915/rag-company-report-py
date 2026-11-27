@@ -246,6 +246,29 @@ def _drop_fields(value: object) -> object:
     return value
 
 
+_ROW_KEYS = ("list", "data")  # opendart는 list, pykrx는 data에 행을 담는다
+
+
+def _tabulate(data: object) -> object:
+    """행 목록을 columns/rows 표로 바꾼다. 모든 행에서 값이 같은 칸(접수번호, 결산일 등)은 위로 올린다.
+    행마다 키 이름이 반복되지 않아 최대주주처럼 행이 많은 결과도 4,000자 안에 들어간다."""
+    if not isinstance(data, dict):
+        return data
+    key = next((k for k in _ROW_KEYS if isinstance(data.get(k), list)), None)
+    rows = data.get(key) if key else None
+    if not rows or not all(isinstance(r, dict) for r in rows):
+        return data
+    columns = list(dict.fromkeys(c for r in rows for c in r))
+    constant = (
+        {c: rows[0].get(c) for c in columns if all(r.get(c) == rows[0].get(c) for r in rows)}
+        if len(rows) > 1
+        else {}
+    )
+    columns = [c for c in columns if c not in constant]
+    rest = {k: v for k, v in data.items() if k != key}
+    return {**rest, **constant, "columns": columns, "rows": [[r.get(c) for c in columns] for r in rows]}
+
+
 def _error_of(server: str, data: object) -> str | None:
     if not isinstance(data, dict):
         return None
@@ -274,7 +297,7 @@ def normalize_result(
     error = _error_of(tool.server, data)
     if error:
         return ToolResult(False, error)
-    compact = json.dumps(_drop_fields(data), ensure_ascii=False, separators=(",", ":"))
+    compact = json.dumps(_tabulate(_drop_fields(data)), ensure_ascii=False, separators=(",", ":"))
     return ToolResult.of(True, compact, tool.sources_of(data, arguments, scope))
 
 
