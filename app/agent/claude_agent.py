@@ -10,9 +10,11 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 from app.agent.context import REPO_ROOT
+from app.agent.external_mcp import EXTERNAL_TOOL_NAMES, external_scope, redact_secrets
+from app.agent.mcp_pool import secrets_of
 from app.agent.tools import TOOL_NAMES
 from app.agent.trace import ToolCallRecord, read_records
 from app.config import Settings
@@ -26,7 +28,9 @@ class ClaudeAgentResult:
     records: list[ToolCallRecord]
 
 
-def build_mcp_config(corp_code: str, trace_path: Path, max_tool_calls: int) -> dict:
+def build_mcp_config(
+    corp_code: str, trace_path: Path, max_tool_calls: int, external: bool = False
+) -> dict:
     """비밀값은 넣지 않는다. 서버가 repo_settings()로 .env를 직접 읽는다."""
     return {
         "mcpServers": {
@@ -37,6 +41,7 @@ def build_mcp_config(corp_code: str, trace_path: Path, max_tool_calls: int) -> d
                     "AGENT_CORP_CODE": corp_code,
                     "AGENT_TRACE_PATH": str(trace_path),
                     "AGENT_MAX_TOOL_CALLS": str(max_tool_calls),
+                    "AGENT_EXTERNAL_MCP": "1" if external else "0",
                     "PYTHONPATH": str(REPO_ROOT),
                 },
             }
@@ -45,7 +50,11 @@ def build_mcp_config(corp_code: str, trace_path: Path, max_tool_calls: int) -> d
 
 
 def build_claude_command(
-    question: str, system_prompt: str, model: str, mcp_config_path: Path
+    question: str,
+    system_prompt: str,
+    model: str,
+    mcp_config_path: Path,
+    tool_names: Sequence[str] = TOOL_NAMES,
 ) -> list[str]:
     # 가변 인자 플래그(--allowedTools 등)가 뒤따르는 위치 인자를 삼키지 않도록 질문을 -p 바로 뒤에 둔다.
     return [
@@ -59,7 +68,7 @@ def build_claude_command(
         "--tools", "",
         "--setting-sources", "",
         # 가변 인자 플래그라 마지막에 둔다
-        "--allowedTools", *[f"mcp__{MCP_SERVER_NAME}__{n}" for n in TOOL_NAMES],
+        "--allowedTools", *[f"mcp__{MCP_SERVER_NAME}__{n}" for n in tool_names],
     ]
 
 
@@ -75,12 +84,16 @@ def run_claude_agent(
     try:
         trace_path = workdir / "trace.jsonl"
         config_path = workdir / "mcp.json"
-        config = build_mcp_config(corp_code, trace_path, settings.agent_max_tool_calls)
+        external = settings.agent_external_mcp and external_scope(corp_code) is not None
+        config = build_mcp_config(corp_code, trace_path, settings.agent_max_tool_calls, external)
         fd = os.open(config_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(config, f)
 
-        command = build_claude_command(question, system_prompt, settings.claude_model, config_path)
+        tool_names = TOOL_NAMES + EXTERNAL_TOOL_NAMES if external else TOOL_NAMES
+        command = build_claude_command(
+            question, system_prompt, settings.claude_model, config_path, tool_names
+        )
         try:
             completed = runner(
                 command,
@@ -97,9 +110,8 @@ def run_claude_agent(
             raise RuntimeError(f"claude CLI 응답이 {timeout}초 안에 오지 않았습니다") from e
 
         if completed.returncode != 0:
-            raise RuntimeError(
-                f"claude CLI 오류 (exit {completed.returncode}): {completed.stderr.strip()}"
-            )
+            stderr = redact_secrets(completed.stderr.strip(), secrets_of(settings))
+            raise RuntimeError(f"claude CLI 오류 (exit {completed.returncode}): {stderr}")
         return ClaudeAgentResult(parse_cli_json(completed.stdout), read_records(trace_path))
     finally:
         shutil.rmtree(workdir, ignore_errors=True)

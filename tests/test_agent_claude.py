@@ -133,3 +133,47 @@ def test_claude_cli_client_strips_api_credentials(monkeypatch):
     assert "ANTHROPIC_API_KEY" not in seen["env"]
     assert "ANTHROPIC_AUTH_TOKEN" not in seen["env"]
     assert "PATH" in seen["env"]
+
+
+def test_mcp_config_external_flag(tmp_path):
+    from app.agent.external_mcp import EXTERNAL_TOOL_NAMES  # noqa: F401
+
+    on = build_mcp_config("00126380", tmp_path / "t.jsonl", 6, external=True)
+    off = build_mcp_config("00126380", tmp_path / "t.jsonl", 6)
+    assert on["mcpServers"]["company"]["env"]["AGENT_EXTERNAL_MCP"] == "1"
+    assert off["mcpServers"]["company"]["env"]["AGENT_EXTERNAL_MCP"] == "0"
+
+
+def test_claude_command_includes_external_tools_only_when_given():
+    from app.agent.external_mcp import EXTERNAL_TOOL_NAMES
+
+    default = build_claude_command("q", "sys", "sonnet", Path("/tmp/c.json"))
+    assert "mcp__company__krx_stock_price" not in default
+    extended = build_claude_command(
+        "q", "sys", "sonnet", Path("/tmp/c.json"), tool_names=TOOL_NAMES + EXTERNAL_TOOL_NAMES
+    )
+    assert "mcp__company__krx_stock_price" in extended
+
+
+def test_run_claude_agent_passes_external_flag_when_enabled():
+    seen = {}
+
+    def runner(command, **kwargs):
+        seen["env"] = _config_from(command)["mcpServers"]["company"]["env"]
+        seen["cmd"] = command
+        return subprocess.CompletedProcess(command, 0, '{"result": "x", "is_error": false}', "")
+
+    settings = Settings(_env_file=None, agent_external_mcp=True)
+    run_claude_agent("q", "sys", "00126380", settings, runner=runner)
+    assert seen["env"]["AGENT_EXTERNAL_MCP"] == "1"
+    assert "mcp__company__dart_dividend" in seen["cmd"]
+
+
+def test_run_claude_agent_redacts_stderr():
+    def runner(command, **kwargs):
+        return subprocess.CompletedProcess(command, 1, "", "failed crtfc_key=K123 token K123")
+
+    settings = Settings(_env_file=None, dart_api_key="K123")
+    with pytest.raises(RuntimeError) as e:
+        run_claude_agent("q", "sys", "00126380", settings, runner=runner)
+    assert "K123" not in str(e.value) and "***" in str(e.value)
