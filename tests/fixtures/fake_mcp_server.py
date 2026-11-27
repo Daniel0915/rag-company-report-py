@@ -31,7 +31,14 @@ async def on_call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.C
 
 
 async def main() -> None:
-    print("boot crtfc_key=" + os.environ.get("FAKE_SECRET", ""), file=sys.stderr, flush=True)
+    secret = os.environ.get("FAKE_SECRET", "")
+    print("boot", file=sys.stderr, flush=True)
+    if secret:
+        print("boot crtfc_key=" + secret, file=sys.stderr, flush=True)
+        # rich 로그처럼 80칸에서 줄이 꺾여 키가 두 줄로 나뉜 경우
+        print(f"GET /api/x.json?a=1&crtfc_k\ney={secret[:3]}\n{secret[3:]}", file=sys.stderr, flush=True)
+    if os.environ.get("FAKE_HANG_BEFORE_INIT"):
+        await asyncio.sleep(30)
     server = Server("fake", on_list_tools=on_list_tools, on_call_tool=on_call_tool)
     async with stdio_server() as (read, write):
         await server.run(read, write, server.create_initialization_options())

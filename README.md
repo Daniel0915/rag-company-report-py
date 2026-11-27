@@ -453,9 +453,16 @@ YAML 주석은 보존되지 않습니다.
 
 - **실행 방식:** 두 서버는 MCP SDK 1.x로 짜여 있어 이 저장소(2.x)와 섞지 않고
   `uvx --with "mcp<2" opendart-mcp@0.1.0`, `uvx --with "mcp<2" pykrx-mcp@0.1.3`으로 따로 띄웁니다.
-  `uv`가 설치되어 있어야 하고, 처음 한 번은 패키지를 내려받습니다.
+  `uv`가 설치되어 있어야 합니다. 처음 실행할 때 패키지를 내려받는데, 이 시간이 시작 시간 제한(30초)에
+  걸리면 첫 요청의 외부 도구가 실패합니다. 켜기 전에 아래 명령으로 한 번 미리 받아 두세요.
+
+  ```bash
+  uvx --with "mcp<2" opendart-mcp@0.1.0 --help
+  uvx --with "mcp<2" pykrx-mcp@0.1.3 --help
+  ```
 - **회사 범위:** `corp_code`와 종목코드는 모델에게 보이지 않고 현재 대화 중인 회사로 넣습니다.
-- **키:** `opendart-mcp`에는 `DART_API_KEY`만 넘깁니다. 결과, 오류 문구, 서버 stderr 로그에서 키를 `***`로 가립니다.
+- **키:** DART 키는 `opendart-mcp`에만 넘깁니다. 결과와 오류 문구에서는 키를 `***`로 가리고, 서버 stderr에
+  키가 섞여 있으면 그 stderr는 로그에 남기지 않습니다(`opendart-mcp`는 매 요청 URL을 stderr에 씁니다).
 - **실패:** 서버가 안 뜨거나 `AGENT_EXTERNAL_MCP_TIMEOUT_SECONDS`(기본 30초) 안에 답하지 않으면
   그 호출만 실패 결과가 되고, 모델은 다른 도구로 계속 답합니다.
 - **출처:** `sources`에 `docType`이 `"DART_API"`(접수번호 포함) 또는 `"KRX"`인 항목으로 들어갑니다.

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
 from contextlib import AbstractContextManager, asynccontextmanager
 from typing import IO, AsyncIterator, Mapping, Sequence
@@ -26,11 +27,11 @@ STDERR_TAIL_LINES = 20
 _PASSTHROUGH_ENV = ("PATH", "HOME", "UV_CACHE_DIR")
 
 
-def child_env(settings: Settings) -> dict[str, str]:
+def child_env(settings: Settings, server: str) -> dict[str, str]:
+    """그 서버에 필요한 비밀값만 넣는다(pykrx에는 DART 키를 주지 않는다)."""
     env = {k: os.environ[k] for k in _PASSTHROUGH_ENV if os.environ.get(k)}
-    for server in EXTERNAL_SERVERS.values():
-        for env_name, attr in server.secret_env.items():
-            env[env_name] = getattr(settings, attr)
+    for env_name, attr in EXTERNAL_SERVERS[server].secret_env.items():
+        env[env_name] = getattr(settings, attr)
     return env
 
 
@@ -59,12 +60,12 @@ class ExternalMcpPool:
     def __init__(
         self,
         commands: Mapping[str, list[str]],
-        env: Mapping[str, str],
+        envs: Mapping[str, Mapping[str, str]],
         timeout_seconds: float,
         secrets: Sequence[str],
     ) -> None:
         self._commands = dict(commands)
-        self._env = dict(env)
+        self._envs = {name: dict(env) for name, env in envs.items()}
         self._timeout = timeout_seconds
         self._secrets = list(secrets)
         self._portal_cm: AbstractContextManager[BlockingPortal] | None = None
@@ -85,7 +86,7 @@ class ExternalMcpPool:
             return self._sessions[server][1]
         command = self._commands[server]
         errlog = self._errlogs[server] = tempfile.TemporaryFile("w+", encoding="utf-8")
-        params = StdioServerParameters(command=command[0], args=command[1:], env=self._env)
+        params = StdioServerParameters(command=command[0], args=command[1:], env=self._envs.get(server, {}))
         portal = self._ensure_portal()
         cm = portal.wrap_async_context_manager(_open_session(params, errlog, self._timeout))
         session = cm.__enter__()
@@ -104,7 +105,7 @@ class ExternalMcpPool:
             result = self._ensure_portal().call(_call_tool, session, tool, arguments, self._timeout)
         except Exception as e:  # noqa: BLE001 - 시작 실패, 시간 초과, 연결 끊김을 한 가지 오류로 모은다
             self._broken.add(server)
-            reason = "시간 초과" if isinstance(e, TimeoutError) else f"{type(e).__name__}: {e}"
+            reason = _reason(e)
             raise ExternalMcpError(redact_secrets(f"{server} 서버 오류 ({reason})", self._secrets)) from e
         text = "".join(getattr(c, "text", "") for c in result.content)
         return text, bool(result.is_error)
@@ -125,16 +126,41 @@ class ExternalMcpPool:
             errlog.seek(0)
             tail = errlog.read().splitlines()[-STDERR_TAIL_LINES:]
             errlog.close()
-            if tail:
-                logger.info(
-                    "외부 MCP 서버 %s stderr:\n%s", server, redact_secrets("\n".join(tail), self._secrets)
-                )
+            if not tail:
+                continue
+            text = "\n".join(tail)
+            if _contains_secret(text, self._secrets):
+                # opendart-mcp(FastMCP 1.30)는 로그 수준을 INFO로 고정해 httpx가 요청 URL(crtfc_key 포함)을
+                # 매 호출 stderr에 남기고, rich가 80칸에서 줄을 꺾어 키가 쪼개진다. 치환 대신 통째로 남기지 않는다.
+                logger.info("외부 MCP 서버 %s stderr: 비밀값이 섞여 있어 남기지 않습니다", server)
+            else:
+                logger.info("외부 MCP 서버 %s stderr:\n%s", server, text)
+
+
+def _contains_secret(text: str, secrets: Sequence[str]) -> bool:
+    squashed = re.sub(r"\s+", "", text)
+    return "crtfc_key=" in squashed or any(s and s in squashed for s in secrets)
+
+
+def _leaves(e: BaseException) -> list[BaseException]:
+    if isinstance(e, BaseExceptionGroup):
+        return [leaf for sub in e.exceptions for leaf in _leaves(sub)]
+    return [e]
+
+
+def _reason(e: BaseException) -> str:
+    """TaskGroup이 감싼 예외(ExceptionGroup)를 풀어 실제 원인을 쓴다."""
+    leaves = _leaves(e)
+    if any(isinstance(leaf, TimeoutError) for leaf in leaves):
+        return "시간 초과"
+    first = leaves[0]
+    return f"{type(first).__name__}: {first}"
 
 
 def open_external_pool(settings: Settings) -> ExternalMcpPool:
     return ExternalMcpPool(
         {name: server.command() for name, server in EXTERNAL_SERVERS.items()},
-        child_env(settings),
+        {name: child_env(settings, name) for name in EXTERNAL_SERVERS},
         settings.agent_external_mcp_timeout_seconds,
         secrets_of(settings),
     )

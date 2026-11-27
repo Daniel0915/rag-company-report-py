@@ -35,7 +35,7 @@ async def test_registry_matches_remote_schemas():
     settings = repo_settings()
     scope = external_scope("00126380")
     for server in EXTERNAL_SERVERS:
-        remote = await _remote_tools(server, child_env(settings))
+        remote = await _remote_tools(server, child_env(settings, server))
         for tool in (t for t in EXTERNAL_TOOLS if t.server == server):
             assert tool.remote_name in remote, tool.remote_name
             properties = remote[tool.remote_name].input_schema["properties"]

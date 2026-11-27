@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import os
 import sys
 import time
@@ -16,7 +17,7 @@ FAKE = [sys.executable, str(Path(__file__).parent / "fixtures" / "fake_mcp_serve
 
 def _pool(timeout=10):
     env = {"PATH": os.environ["PATH"], "FAKE_SECRET": "S3CRET"}
-    return ExternalMcpPool({"fake": FAKE}, env, timeout, ["S3CRET"])
+    return ExternalMcpPool({"fake": FAKE}, {"fake": env}, timeout, ["S3CRET"])
 
 
 def test_call_reuses_one_process():
@@ -63,7 +64,7 @@ def test_timeout_marks_server_unavailable():
 
 
 def test_start_failure_raises():
-    pool = ExternalMcpPool({"bad": ["/nonexistent/server"]}, {"PATH": os.environ["PATH"]}, 5, [])
+    pool = ExternalMcpPool({"bad": ["/nonexistent/server"]}, {"bad": {"PATH": os.environ["PATH"]}}, 5, [])
     try:
         with pytest.raises(ExternalMcpError):
             pool.call("bad", "echo", {})
@@ -86,18 +87,42 @@ def test_close_is_safe_without_calls_and_twice():
     pool.close()
 
 
-def test_stderr_is_logged_redacted(caplog):
+def test_stderr_with_secret_is_withheld_even_when_wrapped(caplog):
     caplog.set_level(logging.INFO)
     pool = _pool()
     pool.call("fake", "echo", {})
     pool.close()
-    assert "boot" in caplog.text and "S3CRET" not in caplog.text and "***" in caplog.text
+    squashed = re.sub(r"\s+", "", caplog.text)
+    assert "S3CRET" not in squashed and "S3C" + "RET" not in squashed
+    assert "stderr" in caplog.text
+
+
+def test_stderr_without_secret_is_logged(caplog):
+    caplog.set_level(logging.INFO)
+    pool = ExternalMcpPool({"fake": FAKE}, {"fake": {"PATH": os.environ["PATH"]}}, 10, ["S3CRET"])
+    pool.call("fake", "echo", {})
+    pool.close()
+    assert "boot" in caplog.text
+
+
+def test_hang_before_initialize_reports_timeout():
+    env = {"PATH": os.environ["PATH"], "FAKE_HANG_BEFORE_INIT": "1"}
+    pool = ExternalMcpPool({"fake": FAKE}, {"fake": env}, 1, [])
+    try:
+        with pytest.raises(ExternalMcpError, match="시간 초과"):
+            pool.call("fake", "echo", {})
+    finally:
+        pool.close()
 
 
 def test_child_env_has_only_allowed_keys(monkeypatch):
     monkeypatch.setenv("SHOULD_NOT_LEAK", "1")
-    env = child_env(Settings(_env_file=None, dart_api_key="K"))
+    env = child_env(Settings(_env_file=None, dart_api_key="K"), "opendart")
     assert env["OPENDART_API_KEY"] == "K" and "SHOULD_NOT_LEAK" not in env and "PATH" in env
+
+
+def test_child_env_gives_dart_key_only_to_opendart():
+    assert "OPENDART_API_KEY" not in child_env(Settings(_env_file=None, dart_api_key="K"), "pykrx")
 
 
 def test_secrets_of_skips_empty():
@@ -113,7 +138,8 @@ def test_open_external_pool_uses_settings(monkeypatch):
     s = Settings(_env_file=None, dart_api_key="D")
     assert s.agent_external_mcp is False
     mcp_pool.open_external_pool(s)
-    commands, env, timeout, secrets = captured["args"]
+    commands, envs, timeout, secrets = captured["args"]
     assert commands["opendart"] == ["uvx", "--with", "mcp<2", "opendart-mcp@0.1.0"]
     assert commands["pykrx"] == ["uvx", "--with", "mcp<2", "pykrx-mcp@0.1.3"]
-    assert env["OPENDART_API_KEY"] == "D" and timeout == 30 and secrets == ["D"]
+    assert envs["opendart"]["OPENDART_API_KEY"] == "D" and "OPENDART_API_KEY" not in envs["pykrx"]
+    assert timeout == 30 and secrets == ["D"]
