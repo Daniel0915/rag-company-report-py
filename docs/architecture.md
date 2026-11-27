@@ -217,13 +217,10 @@ flowchart LR
 | `app/eval` | 정답셋, 실행, 규칙 채점, Claude 채점, 비교 |
 | `static` | 빌드된 채팅·관리자 화면 |
 
-## 키와 인증
+## 사용하는 서비스
 
-| 대상 | 인증 | 설정 |
-| --- | --- | --- |
-| OpenDART | API 키 | `.env`의 `DART_API_KEY` |
-| DeepSeek | API 키, 선불 크레딧 | `.env`의 `DEEPSEEK_API_KEY` |
-| Tavily | API 키 | `.env`의 `TAVILY_API_KEY` |
-| Claude | 로그인된 `claude` CLI (구독). API 키를 쓰지 않습니다 | 없음 |
-| 네이버 뉴스 | 없음 (페이지 스크래핑) | 없음 |
-| Neo4j, Ollama | 로컬 | `.env`의 `NEO4J_*`, `OLLAMA_*` |
+- **외부 API:** OpenDART, DeepSeek API(deepseek-flash), Tavily 웹 검색
+- **외부 MCP 서버(기본 꺼짐):** opendart-mcp, pykrx-mcp(KRX·네이버 금융 시세)
+- **Claude:** 로그인된 `claude` CLI(구독)
+- **스크래핑:** 네이버 뉴스
+- **로컬:** Neo4j(Docker), Ollama
